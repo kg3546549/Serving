@@ -12,6 +12,7 @@ import {
   playWaveStart,
   unlockAudio,
 } from "./audio/audioDirector";
+import { ACTIVE_STAGE, STAGE_ONE_WAVES } from "./campaign/campaignData";
 import { BuildDock } from "./components/BuildDock";
 import { AutoWaveBar } from "./components/AutoWaveBar";
 import { HelpModal } from "./components/HelpModal";
@@ -22,10 +23,8 @@ import { ResultModal } from "./components/ResultModal";
 import { GAME_EVENTS, gameEvents } from "./game/bridge/gameEvents";
 import {
   type ArchitectureNodeId,
-  type BuildSystemType,
   type GridPosition,
   simulateTrafficWave,
-  WAVES,
   type WaveSimulationResult,
 } from "./simulation/trafficSimulation";
 import {
@@ -37,25 +36,23 @@ const GameHost = lazy(() =>
   import("./game/GameHost").then((module) => ({ default: module.GameHost })),
 );
 
-const PREP_DURATION_MS = 20_000;
+const FIRST_WAVE_PREP_DURATION_MS = 60_000;
+const MAINTENANCE_DURATION_MS = 25_000;
 
 export function App(): React.JSX.Element {
   const [isHelpOpen, setHelpOpen] = useState(false);
   const [selectedNode, setSelectedNode] =
     useState<ArchitectureNodeId | null>(null);
   const [prepRemainingMs, setPrepRemainingMs] =
-    useState(PREP_DURATION_MS);
+    useState(FIRST_WAVE_PREP_DURATION_MS);
   const autoWaveStartedRef = useRef(false);
   const phase = useGameStore((state) => state.phase);
   const waveIndex = useGameStore((state) => state.waveIndex);
   const coins = useGameStore((state) => state.coins);
+  const serviceHp = useGameStore((state) => state.serviceHp);
   const worldReady = useGameStore((state) => state.worldReady);
   const architecture = useGameStore((state) => state.architecture);
-  const expansionUnlocked = useGameStore(
-    (state) => state.expansionUnlocked,
-  );
-  const shopLevel = useGameStore((state) => state.shopLevel);
-  const shopRotation = useGameStore((state) => state.shopRotation);
+  const ownedNodes = useGameStore((state) => state.ownedNodes);
   const liveMetrics = useGameStore((state) => state.liveMetrics);
   const lastResult = useGameStore((state) => state.lastResult);
   const startMission = useGameStore((state) => state.startMission);
@@ -68,14 +65,17 @@ export function App(): React.JSX.Element {
   const continueAfterResult = useGameStore(
     (state) => state.continueAfterResult,
   );
-  const placeSystem = useGameStore((state) => state.placeSystem);
+  const purchaseSystem = useGameStore((state) => state.purchaseSystem);
+  const placeNode = useGameStore((state) => state.placeNode);
   const moveNode = useGameStore((state) => state.moveNode);
   const toggleConnection = useGameStore((state) => state.toggleConnection);
-  const upgradeShop = useGameStore((state) => state.upgradeShop);
-  const rerollShop = useGameStore((state) => state.rerollShop);
   const clearConnections = useGameStore((state) => state.clearConnections);
   const resetCampaign = useGameStore((state) => state.resetCampaign);
-  const wave = WAVES[waveIndex];
+  const wave = STAGE_ONE_WAVES[waveIndex];
+  const prepDurationMs =
+    waveIndex === 0
+      ? FIRST_WAVE_PREP_DURATION_MS
+      : MAINTENANCE_DURATION_MS;
 
   const handleStartMission = useCallback(() => {
     void unlockAudio();
@@ -133,19 +133,19 @@ export function App(): React.JSX.Element {
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [resetCampaign]);
 
-  const handleSelectSystem = useCallback((systemType: BuildSystemType) => {
-    gameEvents.emit(GAME_EVENTS.BUILD_SELECT, { systemType });
+  const handleSelectNode = useCallback((nodeId: ArchitectureNodeId) => {
+    gameEvents.emit(GAME_EVENTS.INVENTORY_SELECT, { nodeId });
   }, []);
 
   const handleCancelPlacement = useCallback(() => {
     gameEvents.emit(GAME_EVENTS.BUILD_CANCEL, undefined);
   }, []);
 
-  const handleSystemPlacement = useCallback(
-    (systemType: BuildSystemType, position: GridPosition) => {
-      placeSystem(systemType, position);
+  const handleNodePlacement = useCallback(
+    (nodeId: ArchitectureNodeId, position: GridPosition) => {
+      placeNode(nodeId, position);
     },
-    [placeSystem],
+    [placeNode],
   );
 
   const handleConnectionRequest = useCallback(
@@ -162,8 +162,8 @@ export function App(): React.JSX.Element {
     [moveNode],
   );
 
-  const handleDropSystem = useCallback(
-    (systemType: BuildSystemType, clientX: number, clientY: number) => {
+  const handleDropNode = useCallback(
+    (nodeId: ArchitectureNodeId, clientX: number, clientY: number) => {
       const canvas = document.querySelector<HTMLCanvasElement>(
         ".game-canvas canvas",
       );
@@ -175,7 +175,7 @@ export function App(): React.JSX.Element {
       const bounds = canvas.getBoundingClientRect();
       const x = ((clientX - bounds.left) / bounds.width) * 1200;
       const y = ((clientY - bounds.top) / bounds.height) * 720;
-      gameEvents.emit(GAME_EVENTS.BUILD_DROP, { systemType, x, y });
+      gameEvents.emit(GAME_EVENTS.INVENTORY_DROP, { nodeId, x, y });
     },
     [handleCancelPlacement],
   );
@@ -193,8 +193,8 @@ export function App(): React.JSX.Element {
       return;
     }
     autoWaveStartedRef.current = false;
-    setPrepRemainingMs(PREP_DURATION_MS);
-  }, [phase, waveIndex]);
+    setPrepRemainingMs(prepDurationMs);
+  }, [phase, prepDurationMs, waveIndex]);
 
   const isTimerPaused = isHelpOpen || selectedNode !== null;
 
@@ -236,8 +236,13 @@ export function App(): React.JSX.Element {
   return (
     <main className="game-shell">
       <MissionHud
+        stageNumber={ACTIVE_STAGE.id}
+        stageName={ACTIVE_STAGE.name}
         waveNumber={wave.id}
+        waveCount={STAGE_ONE_WAVES.length}
         waveTotal={wave.requestCount}
+        protocol={wave.protocol}
+        serviceHp={serviceHp}
         liveMetrics={liveMetrics}
         isRunning={phase === "running"}
         onHelp={() => setHelpOpen(true)}
@@ -250,7 +255,7 @@ export function App(): React.JSX.Element {
               onReady={handleWorldReady}
               onWaveProgress={handleWaveProgress}
               onWaveComplete={handleWaveComplete}
-              onSystemPlacement={handleSystemPlacement}
+              onNodePlacement={handleNodePlacement}
               onConnectionRequest={handleConnectionRequest}
               onNodeMove={handleNodeMove}
               onNodeDetails={setSelectedNode}
@@ -259,18 +264,16 @@ export function App(): React.JSX.Element {
         </div>
         <BuildDock
           architecture={architecture}
+          ownedNodes={ownedNodes}
           coins={coins}
-          expansionUnlocked={expansionUnlocked}
-          shopLevel={shopLevel}
-          shopRotation={shopRotation}
           disabled={phase !== "prepare"}
+          waveIndex={waveIndex}
           wave={wave}
-          onSelectSystem={handleSelectSystem}
-          onDropSystem={handleDropSystem}
+          onSelectNode={handleSelectNode}
+          onDropNode={handleDropNode}
           onCancelPlacement={handleCancelPlacement}
+          onPurchaseSystem={purchaseSystem}
           onClearConnections={clearConnections}
-          onUpgradeShop={upgradeShop}
-          onRerollShop={rerollShop}
         />
       </section>
 
@@ -278,7 +281,7 @@ export function App(): React.JSX.Element {
         <AutoWaveBar
           phase={phase}
           remainingMs={prepRemainingMs}
-          totalMs={PREP_DURATION_MS}
+          totalMs={prepDurationMs}
           paused={isTimerPaused}
         />
       )}
@@ -291,11 +294,19 @@ export function App(): React.JSX.Element {
         />
       )}
       {isHelpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
-      {(phase === "result" || phase === "cleared") && lastResult && (
+      {(phase === "result" ||
+        phase === "cleared" ||
+        phase === "defeated") &&
+        lastResult && (
         <ResultModal
           result={lastResult}
           finalClear={phase === "cleared"}
-          expansionUnlocked={expansionUnlocked}
+          defeated={phase === "defeated"}
+          serviceHp={serviceHp}
+          hpDamage={Math.min(
+            30,
+            Math.ceil(lastResult.metrics.failed * 1.5),
+          )}
           onContinue={handleContinue}
           onRestart={handleRestart}
         />

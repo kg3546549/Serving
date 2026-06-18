@@ -22,11 +22,15 @@ export function MainMenu({ onStart }: MainMenuProps): React.JSX.Element {
           Stack<span>Breach</span>
         </h1>
         <p className="game-subtitle">
-          트래픽을 나누고, 병목을 해결하고, 서비스를 지켜요.
+          Stage 1 · HTTPS 요청을 처리하고 DB 응답까지 반환하세요.
         </p>
 
-        <button type="button" className="soft-primary menu-start" onClick={onStart}>
-          Stage 3 시작
+        <button
+          type="button"
+          className="soft-primary menu-start"
+          onClick={onStart}
+        >
+          서비스 운영 시작
         </button>
       </section>
     </main>

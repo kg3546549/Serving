@@ -26,17 +26,17 @@ export function AutoWaveBar({
       <div className="auto-wave-copy">
         <span>
           {phase === "running"
-            ? "WAVE ACTIVE"
+            ? "SERVICE OPEN"
             : paused
               ? "TIMER PAUSED"
-              : "AUTO DEPLOY"}
+              : "BEFORE OPEN"}
         </span>
         <strong>
           {phase === "running"
-            ? "트래픽 처리 중"
+            ? "서비스 개시 · 사용자 요청 처리 중"
             : paused
               ? "정보창을 닫으면 계속됩니다"
-              : `${seconds}초 후 자동 시작`}
+              : `서비스 개시까지 ${String(seconds).padStart(2, "0")}초 전`}
         </strong>
       </div>
       <div className="auto-wave-track">
@@ -45,4 +45,3 @@ export function AutoWaveBar({
     </section>
   );
 }
-

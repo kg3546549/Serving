@@ -14,34 +14,34 @@ const NODE_COPY: Record<
   { name: string; role: string; color: string; stats: string[] }
 > = {
   entry: {
-    name: "트래픽 입구",
-    role: "웨이브의 모든 요청이 생성되는 시작 지점",
+    name: "Traffic Ingress",
+    role: "모든 외부 요청이 들어오고 최종 응답이 돌아가는 고정 지점",
     color: "mint",
-    stats: ["요청 생성", "외부 트래픽", "경로 시작점"],
+    stats: ["위치 고정", "요청 생성", "응답 도착점"],
   },
   loadBalancer: {
-    name: "로드밸런서",
+    name: "Load Balancer",
     role: "요청을 앱 서버 A와 B에 Round Robin으로 분산",
     color: "purple",
     stats: ["Round Robin", "백엔드 2대", "분산 계층"],
   },
   serverA: {
-    name: "앱 서버 A",
-    role: "비즈니스 요청을 처리하고 데이터베이스로 전달",
+    name: "App Server A",
+    role: "HTTPS 요청의 비즈니스 로직을 처리하고 DB 작업을 요청",
     color: "blue",
-    stats: ["동시 처리 2", "Queue 7", "처리 시간 620ms"],
+    stats: ["동시 처리 2", "Queue 6", "처리 시간 1.2초"],
   },
   serverB: {
-    name: "앱 서버 B",
+    name: "App Server B",
     role: "폭주 웨이브에서 서버 A의 처리 부하를 분담",
     color: "blue",
-    stats: ["동시 처리 2", "Queue 7", "처리 시간 620ms"],
+    stats: ["동시 처리 2", "Queue 6", "처리 시간 1.2초"],
   },
   database: {
-    name: "데이터베이스",
-    role: "처리 완료 요청이 도착하는 데이터 계층",
+    name: "Primary DB",
+    role: "GET 데이터를 읽고 POST 데이터를 저장한 뒤 응답 데이터를 생성",
     color: "yellow",
-    stats: ["최종 목적지", "응답 생성", "관리형 데이터"],
+    stats: ["동시 처리 2", "독립 Queue", "읽기·쓰기 시간 분리"],
   },
 };
 
@@ -76,7 +76,9 @@ export function NodeDetails({
         <span>
           <small>GRID</small>
           <strong>
-            {position.column + 1} × {position.row + 1}
+            {position
+              ? `${position.column + 1} × ${position.row + 1}`
+              : "INVENTORY"}
           </strong>
         </span>
         <span>
@@ -88,11 +90,19 @@ export function NodeDetails({
         {copy.stats.map((stat) => (
           <li key={stat}>{stat}</li>
         ))}
+        {nodeId === "database" && (
+          <li>
+            {architecture.databaseIndexed
+              ? "DB Index 적용 · Slow Query 단축"
+              : "DB Index 미적용"}
+          </li>
+        )}
       </ul>
       <small className="node-details-hint">
-        우클릭 드래그 후 빈 칸에 놓으면 이동, 다른 장비에 놓으면 연결
+        {nodeId === "entry"
+          ? "고정 입구 · 우클릭 드래그로 다른 장비와 연결"
+          : "좌클릭 드래그로 이동 · 우클릭 드래그로 연결"}
       </small>
     </aside>
   );
 }
-

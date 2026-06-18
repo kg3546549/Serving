@@ -2,22 +2,22 @@ import Phaser from "phaser";
 import type {
   ArchitectureConfig,
   ArchitectureNodeId,
-  BuildSystemType,
   GridPosition,
   TrafficEvent,
   WaveSimulationResult,
 } from "../simulation/trafficSimulation";
 import {
+  DEFAULT_NODE_POSITIONS,
   hasBalancedRoute,
-  hasSingleServerRoute,
+  isArchitectureNodePlaced,
 } from "../simulation/trafficSimulation";
 import type { LiveWaveMetrics } from "../store/gameStore";
 import {
   GAME_EVENTS,
   gameEvents,
   type ArchitecturePayload,
-  type BuildDropPayload,
-  type BuildSelectPayload,
+  type InventoryDropPayload,
+  type InventorySelectPayload,
 } from "./bridge/gameEvents";
 import { resolveNodeGesture } from "./nodeGesture";
 
@@ -26,7 +26,7 @@ interface NodeView {
   container: Phaser.GameObjects.Container;
   pressure?: Phaser.GameObjects.Graphics;
   queueText?: Phaser.GameObjects.Text;
-  face?: Phaser.GameObjects.Text;
+  stateText?: Phaser.GameObjects.Text;
 }
 
 interface GridCellView {
@@ -40,11 +40,13 @@ interface NodeGesture {
   startX: number;
   startY: number;
   dragged: boolean;
+  mode: "move" | "connect";
+  origin: Phaser.Math.Vector2;
 }
 
 const WIDTH = 1200;
 const HEIGHT = 720;
-const PLAYBACK_SCALE = 0.78;
+const PLAYBACK_SCALE = 1;
 const GRID = {
   columns: 9,
   rows: 4,
@@ -76,14 +78,12 @@ const COLORS = {
 
 export class ArchitectureScene extends Phaser.Scene {
   private architecture: ArchitectureConfig = {
-    serverCount: 1,
+    serverCount: 0,
     hasLoadBalancer: false,
+    hasDatabase: false,
+    databaseIndexed: false,
     nodePositions: {
-      entry: { column: 0, row: 1 },
-      loadBalancer: { column: 2, row: 1 },
-      serverA: { column: 5, row: 0 },
-      serverB: { column: 5, row: 2 },
-      database: { column: 8, row: 1 },
+      entry: { ...DEFAULT_NODE_POSITIONS.entry! },
     },
     connections: [],
   };
@@ -93,7 +93,7 @@ export class ArchitectureScene extends Phaser.Scene {
   private pathGraphics!: Phaser.GameObjects.Graphics;
   private previewGraphics!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
-  private activeBuildType: BuildSystemType | null = null;
+  private activePlacementNode: ArchitectureNodeId | null = null;
   private nodeGesture: NodeGesture | null = null;
   private moveTargetPosition: GridPosition | null = null;
   private activeTimers: Phaser.Time.TimerEvent[] = [];
@@ -102,6 +102,7 @@ export class ArchitectureScene extends Phaser.Scene {
     completed: 0,
     failed: 0,
     queueByServer: [0, 0],
+    databaseQueue: 0,
   };
   private unsubscribers: Array<() => void> = [];
 
@@ -135,25 +136,29 @@ export class ArchitectureScene extends Phaser.Scene {
       gameEvents.on<ArchitecturePayload>(
         GAME_EVENTS.CONFIGURE_ARCHITECTURE,
         ({ architecture }) => {
-          const builtLoadBalancer =
-            !this.architecture.hasLoadBalancer && architecture.hasLoadBalancer;
-          const builtSecondServer =
-            this.architecture.serverCount === 1 &&
-            architecture.serverCount === 2;
+          const placedNewNode = (
+            Object.keys(architecture.nodePositions) as ArchitectureNodeId[]
+          ).some(
+            (nodeId) =>
+              architecture.nodePositions[nodeId] !== undefined &&
+              this.architecture.nodePositions[nodeId] === undefined,
+          );
           this.architecture = architecture;
-          this.applyArchitecture(builtLoadBalancer || builtSecondServer);
+          this.applyArchitecture(placedNewNode);
         },
       ),
       gameEvents.on<void>(GAME_EVENTS.RESET_WORLD, () => this.resetWorld()),
-      gameEvents.on<BuildSelectPayload>(
-        GAME_EVENTS.BUILD_SELECT,
-        ({ systemType }) => this.beginPlacement(systemType),
+      gameEvents.on<InventorySelectPayload>(
+        GAME_EVENTS.INVENTORY_SELECT,
+        ({ nodeId }) => this.beginPlacement(nodeId),
       ),
       gameEvents.on<void>(GAME_EVENTS.BUILD_CANCEL, () =>
         this.cancelPlacement(),
       ),
-      gameEvents.on<BuildDropPayload>(GAME_EVENTS.BUILD_DROP, (payload) =>
-        this.handleBuildDrop(payload),
+      gameEvents.on<InventoryDropPayload>(
+        GAME_EVENTS.INVENTORY_DROP,
+        (payload) =>
+          this.handleInventoryDrop(payload),
       ),
     );
 
@@ -215,7 +220,7 @@ export class ArchitectureScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
 
         rectangle.on("pointerover", () => {
-          if (this.activeBuildType && !this.isOccupied(position)) {
+          if (this.activePlacementNode && !this.isOccupied(position)) {
             rectangle.setFillStyle(0xe6f7ef, 1);
             rectangle.setStrokeStyle(4, COLORS.mint, 1);
           }
@@ -224,10 +229,10 @@ export class ArchitectureScene extends Phaser.Scene {
         rectangle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (
             pointer.button === 0 &&
-            this.activeBuildType &&
+            this.activePlacementNode &&
             !this.isOccupied(position)
           ) {
-            this.requestPlacement(this.activeBuildType, position);
+            this.requestPlacement(this.activePlacementNode, position);
           }
         });
         this.gridCells.push({ position, center, rectangle });
@@ -238,33 +243,33 @@ export class ArchitectureScene extends Phaser.Scene {
   private createNodes(): void {
     this.nodes.set(
       "entry",
-      this.createEntryNode(this.gridToWorld(this.architecture.nodePositions.entry)),
+      this.createEntryNode(this.gridToWorld(DEFAULT_NODE_POSITIONS.entry!)),
     );
     this.nodes.set(
       "serverA",
       this.createServerNode(
         "serverA",
-        this.gridToWorld(this.architecture.nodePositions.serverA),
+        this.gridToWorld(DEFAULT_NODE_POSITIONS.serverA!),
         "앱 서버 A",
       ),
     );
     this.nodes.set(
       "database",
       this.createDatabaseNode(
-        this.gridToWorld(this.architecture.nodePositions.database),
+        this.gridToWorld(DEFAULT_NODE_POSITIONS.database!),
       ),
     );
     this.nodes.set(
       "loadBalancer",
       this.createLoadBalancerNode(
-        this.gridToWorld(this.architecture.nodePositions.loadBalancer),
+        this.gridToWorld(DEFAULT_NODE_POSITIONS.loadBalancer!),
       ),
     );
     this.nodes.set(
       "serverB",
       this.createServerNode(
         "serverB",
-        this.gridToWorld(this.architecture.nodePositions.serverB),
+        this.gridToWorld(DEFAULT_NODE_POSITIONS.serverB!),
         "앱 서버 B",
       ),
     );
@@ -272,29 +277,23 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createEntryNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 37, 70, 18, 0x796f61, 0.12);
-    const body = this.add.circle(0, 0, 31, 0xd8f2e8);
-    body.setStrokeStyle(4, COLORS.mint);
-    const arrow = this.add
-      .text(0, -5, "→", {
-        color: "#4c9f87",
-        fontFamily: "Arial",
-        fontSize: "26px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    const face = this.add
-      .text(0, 15, "•ᴗ•", {
-        color: "#578779",
-        fontFamily: "Trebuchet MS",
-        fontSize: "9px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    const label = this.createNodeLabel("트래픽 입구", 0, 50);
-    container.add([shadow, body, arrow, face, label]);
+    const shadow = this.add.ellipse(0, 38, 72, 16, 0x36556f, 0.14);
+    const tile = this.add.rectangle(0, 0, 66, 66, 0x0078d4);
+    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const icon = this.add.graphics();
+    icon.lineStyle(4, 0xffffff, 1);
+    icon.strokeCircle(-12, -9, 7);
+    icon.strokeCircle(12, -9, 7);
+    icon.beginPath();
+    icon.arc(-12, 18, 13, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.strokePath();
+    icon.beginPath();
+    icon.arc(12, 18, 13, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.strokePath();
+    const label = this.createNodeLabel("Traffic Ingress · FIXED", 0, 50);
+    container.add([shadow, tile, icon, label]);
     this.makeConnectable(container, "entry");
-    return { id: "entry", container, face };
+    return { id: "entry", container };
   }
 
   private createServerNode(
@@ -304,29 +303,24 @@ export class ArchitectureScene extends Phaser.Scene {
   ): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 38, 76, 18, 0x796f61, 0.12);
+    const shadow = this.add.ellipse(0, 39, 78, 16, 0x36556f, 0.14);
     const body = this.add.graphics();
-    body.fillStyle(0xddeafe, 1);
-    body.fillRoundedRect(-33, -31, 66, 62, 17);
-    body.lineStyle(4, COLORS.blue, 1);
-    body.strokeRoundedRect(-33, -31, 66, 62, 17);
-    body.fillStyle(0xbdd8f6, 1);
-    body.fillRoundedRect(-22, -14, 44, 25, 7);
-    const face = this.add
-      .text(0, -19, "•ᴗ•", {
-        color: "#587ba1",
-        fontFamily: "Trebuchet MS",
+    body.fillStyle(0x0078d4, 1);
+    body.fillRect(-34, -32, 68, 64);
+    body.lineStyle(3, 0xffffff, 0.9);
+    body.strokeRect(-34, -32, 68, 64);
+    body.lineStyle(4, 0xffffff, 1);
+    body.strokeRect(-22, -18, 44, 29);
+    body.lineBetween(-13, 20, 13, 20);
+    body.lineBetween(0, 11, 0, 20);
+    const stateText = this.add
+      .text(0, -1, "APP", {
+        color: "#ffffff",
+        fontFamily: "Arial",
         fontSize: "10px",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
-    const rack = this.add.graphics();
-    for (let row = 0; row < 2; row += 1) {
-      rack.fillStyle(0x8fbbe9, 1);
-      rack.fillRoundedRect(-17, -5 + row * 11, 34, 7, 2);
-      rack.fillStyle(COLORS.green, 1);
-      rack.fillCircle(-12, -2 + row * 11, 1.7);
-    }
     const label = this.createNodeLabel(title, 0, 48);
     const queueText = this.add
       .text(0, 62, "대기 0", {
@@ -338,62 +332,81 @@ export class ArchitectureScene extends Phaser.Scene {
         padding: { x: 6, y: 3 },
       })
       .setOrigin(0.5);
-    container.add([pressure, shadow, body, face, rack, label, queueText]);
+    container.add([pressure, shadow, body, stateText, label, queueText]);
     this.makeConnectable(container, id);
-    return { id, container, pressure, queueText, face };
+    return { id, container, pressure, queueText, stateText };
   }
 
   private createLoadBalancerNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 37, 72, 18, 0x796f61, 0.12);
+    const shadow = this.add.ellipse(0, 38, 74, 16, 0x36556f, 0.14);
     const body = this.add.graphics();
-    body.fillStyle(0xeee7fb, 1);
-    body.fillRoundedRect(-31, -31, 62, 62, 18);
-    body.lineStyle(4, COLORS.purple, 1);
-    body.strokeRoundedRect(-31, -31, 62, 62, 18);
-    const icon = this.add
-      .text(0, -4, "↗↘", {
-        color: "#7662af",
-        fontFamily: "Arial",
-        fontSize: "20px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    const face = this.add
-      .text(0, 17, "•ᴗ•", {
-        color: "#78689f",
-        fontFamily: "Trebuchet MS",
-        fontSize: "9px",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    const label = this.createNodeLabel("로드밸런서", 0, 49);
-    container.add([shadow, body, icon, face, label]);
+    body.fillStyle(0x5c2d91, 1);
+    body.fillRect(-33, -32, 66, 64);
+    body.lineStyle(3, 0xffffff, 0.9);
+    body.strokeRect(-33, -32, 66, 64);
+    body.lineStyle(4, 0xffffff, 1);
+    body.strokeRect(-7, -7, 14, 14);
+    body.lineBetween(0, -27, 0, -7);
+    body.lineBetween(0, 7, 0, 27);
+    body.lineBetween(-27, 0, -7, 0);
+    body.lineBetween(7, 0, 27, 0);
+    const label = this.createNodeLabel("Load Balancer", 0, 49);
+    container.add([shadow, body, label]);
     this.makeConnectable(container, "loadBalancer");
-    return { id: "loadBalancer", container, face };
+    return { id: "loadBalancer", container };
   }
 
   private createDatabaseNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 39, 72, 18, 0x796f61, 0.12);
-    const body = this.add.rectangle(0, 2, 54, 48, 0xffe8a4);
-    body.setStrokeStyle(4, COLORS.yellow);
-    const top = this.add.ellipse(0, -21, 54, 20, 0xffefb9);
-    top.setStrokeStyle(4, COLORS.yellow);
-    const bottom = this.add.ellipse(0, 25, 54, 18, 0xffe8a4);
-    bottom.setStrokeStyle(4, COLORS.yellow);
-    const face = this.add
-      .text(0, 3, "•‿•", {
-        color: "#9a7a2d",
-        fontFamily: "Trebuchet MS",
-        fontSize: "10px",
+    const pressure = this.add.graphics();
+    const shadow = this.add.ellipse(0, 39, 72, 16, 0x36556f, 0.14);
+    const tile = this.add.rectangle(0, 0, 66, 66, 0x0089d6);
+    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const database = this.add.graphics();
+    database.fillStyle(0xffffff, 1);
+    database.fillEllipse(0, -17, 38, 13);
+    database.fillRect(-19, -17, 38, 34);
+    database.fillEllipse(0, 17, 38, 13);
+    database.lineStyle(2, 0x0089d6, 1);
+    database.strokeEllipse(0, -5, 38, 13);
+    database.strokeEllipse(0, 7, 38, 13);
+    const label = this.createNodeLabel("Primary DB", 0, 50);
+    const stateText = this.add
+      .text(0, 0, "DB", {
+        color: "#0074a8",
+        fontFamily: "Arial",
+        fontSize: "8px",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
-    const label = this.createNodeLabel("데이터베이스", 0, 53);
-    container.add([shadow, body, bottom, top, face, label]);
+    const queueText = this.add
+      .text(0, 62, "대기 0", {
+        color: "#7f8290",
+        fontFamily: "Trebuchet MS",
+        fontSize: "9px",
+        fontStyle: "bold",
+        backgroundColor: "#fffdf8",
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5);
+    container.add([
+      pressure,
+      shadow,
+      tile,
+      database,
+      stateText,
+      label,
+      queueText,
+    ]);
     this.makeConnectable(container, "database");
-    return { id: "database", container, face };
+    return {
+      id: "database",
+      container,
+      pressure,
+      queueText,
+      stateText,
+    };
   }
 
   private createNodeLabel(
@@ -426,19 +439,42 @@ export class ArchitectureScene extends Phaser.Scene {
     });
     container.on("pointerout", () => container.setScale(1));
     container.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      const shiftConnect = Boolean(
+        (pointer.event as MouseEvent | undefined)?.shiftKey,
+      );
       if (
-        (pointer.button === 2 || pointer.rightButtonDown()) &&
+        nodeId === "entry" &&
+        pointer.button === 0 &&
+        !pointer.rightButtonDown() &&
+        !shiftConnect
+      ) {
+        gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, { nodeId });
+        this.statusText.setText("트래픽 입구는 고정 시설입니다");
+        return;
+      }
+      if (
+        (pointer.button === 0 ||
+          pointer.button === 2 ||
+          pointer.rightButtonDown()) &&
         !this.isWaveRunning &&
         this.isNodeActive(nodeId)
       ) {
+        const mode =
+          pointer.button === 2 || pointer.rightButtonDown() || shiftConnect
+            ? "connect"
+            : "move";
         this.nodeGesture = {
           nodeId,
           startX: pointer.worldX,
           startY: pointer.worldY,
           dragged: false,
+          mode,
+          origin: this.getNodePosition(nodeId),
         };
         this.statusText.setText(
-          "다른 장비에 놓으면 연결 · 빈 격자에 놓으면 이동",
+          mode === "connect"
+            ? "연결할 장비 위에서 우클릭을 놓으세요"
+            : "빈 격자 칸으로 장비를 이동하세요",
         );
       }
     });
@@ -461,16 +497,23 @@ export class ArchitectureScene extends Phaser.Scene {
       this.nodeGesture.dragged = true;
       const source = this.getNodePosition(this.nodeGesture.nodeId);
       this.previewGraphics.clear();
-      this.previewGraphics.lineStyle(7, COLORS.mint, 0.78);
-      this.previewGraphics.lineBetween(
-        source.x,
-        source.y,
-        pointer.worldX,
-        pointer.worldY,
-      );
+      if (this.nodeGesture.mode === "connect") {
+        this.previewGraphics.lineStyle(7, COLORS.blue, 0.82);
+        this.previewGraphics.lineBetween(
+          source.x,
+          source.y,
+          pointer.worldX,
+          pointer.worldY,
+        );
+      } else {
+        this.nodes
+          .get(this.nodeGesture.nodeId)
+          ?.container.setPosition(pointer.worldX, pointer.worldY);
+      }
       const gridPosition = this.worldToGrid(pointer.worldX, pointer.worldY);
       const nextMoveTarget =
         gridPosition &&
+        this.nodeGesture.mode === "move" &&
         !this.findNodeAt(
           pointer.worldX,
           pointer.worldY,
@@ -494,7 +537,10 @@ export class ArchitectureScene extends Phaser.Scene {
       }
       const gesture = this.nodeGesture;
       const source = gesture.nodeId;
-      const target = this.findNodeAt(pointer.worldX, pointer.worldY, source);
+      const target =
+        gesture.mode === "connect"
+          ? this.findNodeAt(pointer.worldX, pointer.worldY, source)
+          : null;
       this.nodeGesture = null;
       this.moveTargetPosition = null;
       this.previewGraphics.clear();
@@ -506,6 +552,7 @@ export class ArchitectureScene extends Phaser.Scene {
         pointer.worldY,
       );
       const resolution = resolveNodeGesture({
+        mode: gesture.mode,
         dragged: gesture.dragged,
         movementDistance,
         source,
@@ -536,6 +583,10 @@ export class ArchitectureScene extends Phaser.Scene {
         });
         this.statusText.setText("장비 위치를 옮겼습니다");
       } else {
+        const origin = gesture.origin;
+        this.nodes
+          .get(source)
+          ?.container.setPosition(origin.x, origin.y);
         this.statusText.setText("빈 격자 칸이나 다른 장비 위에 놓아 주세요");
         this.cameras.main.shake(100, 0.002);
       }
@@ -552,7 +603,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(
         WIDTH / 2,
         102,
-        "우클릭: 정보 · 우클릭 드래그: 연결 또는 이동",
+        "좌클릭: 정보 · 좌클릭 드래그: 이동 · 우클릭 드래그: 연결",
         {
         color: "#676975",
         fontFamily: "Trebuchet MS",
@@ -565,26 +616,23 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private applyArchitecture(playBuildEffect: boolean): void {
-    const loadBalancer = this.nodes.get("loadBalancer")!;
-    const serverB = this.nodes.get("serverB")!;
     for (const [nodeId, node] of this.nodes) {
-      const position = this.gridToWorld(
-        this.architecture.nodePositions[nodeId],
-      );
-      node.container.setPosition(position.x, position.y);
+      const gridPosition = this.architecture.nodePositions[nodeId];
+      node.container.setVisible(Boolean(gridPosition));
+      if (gridPosition) {
+        const position = this.gridToWorld(gridPosition);
+        node.container.setPosition(position.x, position.y);
+      }
     }
-    loadBalancer.container.setVisible(this.architecture.hasLoadBalancer);
-    serverB.container.setVisible(this.architecture.serverCount === 2);
     this.drawConnections();
     this.refreshGrid();
     if (playBuildEffect) {
-      const target =
-        this.architecture.serverCount === 2 &&
-        serverB.container.visible &&
-        serverB.container.scaleX === 1
-          ? serverB.container
-          : loadBalancer.container;
-      this.playBuildPop(target);
+      const target = [...this.nodes.values()].find(
+        (node) => node.container.visible && node.container.scaleX === 1,
+      );
+      if (target) {
+        this.playBuildPop(target.container);
+      }
     }
   }
 
@@ -614,39 +662,39 @@ export class ArchitectureScene extends Phaser.Scene {
     }
   }
 
-  private beginPlacement(systemType: BuildSystemType): void {
+  private beginPlacement(nodeId: ArchitectureNodeId): void {
     if (this.isWaveRunning) {
       return;
     }
-    this.activeBuildType = systemType;
+    this.activePlacementNode = nodeId;
     this.statusText.setText("초록색 격자 칸을 골라 장비를 놓아 주세요");
     this.refreshGrid();
   }
 
   private cancelPlacement(): void {
-    this.activeBuildType = null;
+    this.activePlacementNode = null;
     this.refreshGrid();
   }
 
-  private handleBuildDrop(payload: BuildDropPayload): void {
+  private handleInventoryDrop(payload: InventoryDropPayload): void {
     const position = this.worldToGrid(payload.x, payload.y);
     if (!position || this.isOccupied(position)) {
       this.statusText.setText("비어 있는 격자 칸에 놓아 주세요");
       this.cameras.main.shake(100, 0.002);
       return;
     }
-    this.requestPlacement(payload.systemType, position);
+    this.requestPlacement(payload.nodeId, position);
   }
 
   private requestPlacement(
-    systemType: BuildSystemType,
+    nodeId: ArchitectureNodeId,
     position: GridPosition,
   ): void {
-    gameEvents.emit(GAME_EVENTS.SYSTEM_PLACEMENT_REQUEST, {
-      systemType,
+    gameEvents.emit(GAME_EVENTS.NODE_PLACEMENT_REQUEST, {
+      nodeId,
       position,
     });
-    this.activeBuildType = null;
+    this.activePlacementNode = null;
     this.refreshGrid();
   }
 
@@ -669,7 +717,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const isMoveTarget =
       this.moveTargetPosition?.column === position.column &&
       this.moveTargetPosition?.row === position.row;
-    const active = (Boolean(this.activeBuildType) && !occupied) || isMoveTarget;
+    const active =
+      (Boolean(this.activePlacementNode) && !occupied) || isMoveTarget;
     cell.rectangle.setFillStyle(
       occupied ? 0xf0eadc : active ? 0xe5f6ec : COLORS.paper,
       occupied ? 0.38 : active ? 0.95 : 0.68,
@@ -700,7 +749,7 @@ export class ArchitectureScene extends Phaser.Scene {
         this.isWaveRunning = false;
         this.statusText.setText(
           result.metrics.passed
-            ? "모든 트래픽을 안전하게 보냈어요!"
+            ? "서비스 운영 완료 · 점검시간으로 전환합니다"
             : result.bottleneck,
         );
         if (result.metrics.passed) {
@@ -718,7 +767,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0xfff8e8, 0.7)
       .setDepth(40);
     const text = this.add
-      .text(WIDTH / 2, HEIGHT / 2, `웨이브 ${waveId}\n3`, {
+      .text(WIDTH / 2, HEIGHT / 2, `서비스 개시\n3`, {
         align: "center",
         color: "#6e6590",
         fontFamily: "Trebuchet MS",
@@ -730,7 +779,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(41);
     for (const value of ["3", "2", "1"]) {
-      text.setText(`웨이브 ${waveId}\n${value}`);
+      text.setText(`서비스 개시\n${value}`);
       text.setScale(0.7);
       await this.tweenPromise({
         targets: text,
@@ -740,7 +789,7 @@ export class ArchitectureScene extends Phaser.Scene {
       });
       await this.wait(180);
     }
-    text.setText("출발!");
+    text.setText(`PHASE ${waveId}\nOPEN`);
     await this.wait(180);
     curtain.destroy();
     text.destroy();
@@ -748,54 +797,123 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private presentEvent(event: TrafficEvent): void {
     if (event.type === "spawned") {
-      this.spawnRequest(event.requestId);
+      this.spawnRequest(event.requestId, event.operation ?? "read");
       return;
     }
     if (event.serverId !== undefined) {
       this.updateServerState(
         event.serverId,
-        event.queueLength ?? 0,
-        event.activeCount ?? 0,
+        event.serverQueueLength ?? 0,
+        event.serverActiveCount ?? 0,
+      );
+    }
+    if (
+      event.databaseQueueLength !== undefined ||
+      event.databaseActiveCount !== undefined
+    ) {
+      this.updateDatabaseState(
+        event.databaseQueueLength ?? 0,
+        event.databaseActiveCount ?? 0,
       );
     }
     if (event.type === "routed" && event.serverId !== undefined) {
       this.routeRequest(event.requestId, event.serverId);
-    } else if (event.type === "queued" && event.serverId !== undefined) {
-      this.queueRequest(event.requestId, event.serverId, event.queueLength ?? 1);
-      this.progress.queueByServer[event.serverId] = event.queueLength ?? 0;
+    } else if (
+      event.type === "server_queued" &&
+      event.serverId !== undefined
+    ) {
+      this.queueRequest(
+        event.requestId,
+        event.serverId,
+        event.serverQueueLength ?? 1,
+      );
+      this.progress.queueByServer[event.serverId] =
+        event.serverQueueLength ?? 0;
       this.emitProgress();
-    } else if (event.type === "started" && event.serverId !== undefined) {
+    } else if (
+      event.type === "server_started" &&
+      event.serverId !== undefined
+    ) {
       this.processRequest(event.requestId, event.serverId);
-      this.progress.queueByServer[event.serverId] = event.queueLength ?? 0;
+      this.progress.queueByServer[event.serverId] =
+        event.serverQueueLength ?? 0;
       this.emitProgress();
+    } else if (event.type === "database_routed") {
+      this.routeToDatabase(event.requestId);
+    } else if (event.type === "database_queued") {
+      this.queueAtDatabase(
+        event.requestId,
+        event.databaseQueueLength ?? 1,
+      );
+      this.progress.databaseQueue = event.databaseQueueLength ?? 0;
+      this.emitProgress();
+    } else if (event.type === "database_started") {
+      this.processAtDatabase(event.requestId);
+      this.progress.databaseQueue = event.databaseQueueLength ?? 0;
+      this.emitProgress();
+    } else if (event.type === "database_completed") {
+      this.markDatabaseComplete(event.requestId);
+    } else if (
+      event.type === "response_started" &&
+      event.serverId !== undefined
+    ) {
+      this.returnResponse(event.requestId, event.serverId);
     } else if (event.type === "completed") {
       this.completeRequest(event.requestId);
       this.progress.completed += 1;
       this.emitProgress();
-    } else if (event.type === "dropped" || event.type === "timed_out") {
-      this.failRequest(event.requestId);
+    } else if (
+      event.type === "dropped" ||
+      event.type === "timed_out"
+    ) {
+      this.failRequest(
+        event.requestId,
+        event.type === "timed_out" ? "TIMEOUT" : "DROP",
+      );
       this.progress.failed += 1;
       this.emitProgress();
     }
   }
 
-  private spawnRequest(requestId: number): void {
-    const entry = this.getNodePosition("entry");
-    const colors = [COLORS.blue, COLORS.mint, COLORS.purple, COLORS.yellow];
-    const color = colors[requestId % colors.length];
+  private spawnRequest(
+    requestId: number,
+    operation: NonNullable<TrafficEvent["operation"]>,
+  ): void {
+    const entry = this.isNodeActive("entry")
+      ? this.getNodePosition("entry")
+      : new Phaser.Math.Vector2(50, HEIGHT / 2);
+    const color =
+      operation === "slowRead"
+        ? COLORS.orange
+        : operation === "write"
+          ? COLORS.purple
+          : COLORS.blue;
     const container = this.add.container(entry.x, entry.y).setDepth(12);
-    const glow = this.add.circle(0, 0, 15, color, 0.18);
-    const body = this.add.circle(0, 0, 8, color, 1);
-    body.setStrokeStyle(3, 0xffffff, 1);
-    const face = this.add
-      .text(0, 0, "•", {
-        color: "#ffffff",
+    const shadow = this.add.ellipse(0, 13, 34, 8, 0x35526c, 0.18);
+    const card = this.add.rectangle(0, 0, 34, 27, 0xffffff, 1);
+    card.setStrokeStyle(3, color, 1);
+    const user = this.add.graphics();
+    user.fillStyle(color, 1);
+    user.fillCircle(-8, -5, 4);
+    user.fillRoundedRect(-13, 1, 10, 8, 3);
+    const method = this.add
+      .text(
+        7,
+        0,
+        operation === "write"
+          ? "POST"
+          : operation === "slowRead"
+            ? "SLOW"
+            : "GET",
+        {
+        color: `#${color.toString(16).padStart(6, "0")}`,
         fontFamily: "Arial",
-        fontSize: "8px",
+        fontSize: operation === "write" ? "6px" : "7px",
         fontStyle: "bold",
-      })
+        },
+      )
       .setOrigin(0.5);
-    container.add([glow, body, face]);
+    container.add([shadow, card, user, method]);
     container.setScale(0);
     this.requestViews.set(requestId, container);
     this.tweens.add({
@@ -812,7 +930,7 @@ export class ArchitectureScene extends Phaser.Scene {
       return;
     }
     const points = this.getRequestRoute(serverId);
-    void this.moveAlongPoints(request, points.slice(1), 165);
+    void this.moveAlongPoints(request, points.slice(1), 420);
   }
 
   private queueRequest(
@@ -831,7 +949,7 @@ export class ArchitectureScene extends Phaser.Scene {
       x: target.x - 48 + column * 19,
       y: target.y + 48,
       scale: 0.76,
-      duration: 150,
+      duration: 260,
     });
   }
 
@@ -847,8 +965,100 @@ export class ArchitectureScene extends Phaser.Scene {
       y: target.y,
       scale: 0.38,
       alpha: 0.55,
-      duration: 150,
+      duration: 300,
     });
+  }
+
+  private routeToDatabase(requestId: number): void {
+    const request = this.requestViews.get(requestId);
+    if (!request) {
+      return;
+    }
+    const database = this.getNodePosition("database");
+    request.setAlpha(1).setScale(0.72);
+    this.tweens.add({
+      targets: request,
+      x: database.x,
+      y: database.y,
+      duration: 340,
+      ease: "Sine.InOut",
+    });
+  }
+
+  private queueAtDatabase(requestId: number, queueLength: number): void {
+    const request = this.requestViews.get(requestId);
+    if (!request) {
+      return;
+    }
+    const database = this.getNodePosition("database");
+    const column = (queueLength - 1) % 5;
+    this.tweens.add({
+      targets: request,
+      x: database.x - 42 + column * 18,
+      y: database.y + 49,
+      scale: 0.68,
+      alpha: 1,
+      duration: 230,
+    });
+  }
+
+  private processAtDatabase(requestId: number): void {
+    const request = this.requestViews.get(requestId);
+    if (!request) {
+      return;
+    }
+    const database = this.getNodePosition("database");
+    this.tweens.add({
+      targets: request,
+      x: database.x,
+      y: database.y,
+      scale: 0.28,
+      alpha: 0.5,
+      duration: 260,
+    });
+  }
+
+  private markDatabaseComplete(requestId: number): void {
+    const request = this.requestViews.get(requestId);
+    if (!request) {
+      return;
+    }
+    request.setAlpha(1).setScale(0.7);
+    const pulse = this.add
+      .circle(request.x, request.y, 18, COLORS.yellow, 0.12)
+      .setStrokeStyle(4, COLORS.yellow, 0.9)
+      .setDepth(11);
+    this.tweens.add({
+      targets: pulse,
+      scale: 1.8,
+      alpha: 0,
+      duration: 380,
+      onComplete: () => pulse.destroy(),
+    });
+  }
+
+  private returnResponse(requestId: number, serverId: number): void {
+    const request = this.requestViews.get(requestId);
+    if (!request) {
+      return;
+    }
+    request.setAlpha(1).setScale(0.72);
+    const responseLabel = this.add
+      .text(0, -23, "RESPONSE", {
+        color: "#3f8f72",
+        fontFamily: "Arial",
+        fontSize: "7px",
+        fontStyle: "bold",
+        backgroundColor: "#effbf5",
+        padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5);
+    request.add(responseLabel);
+    void this.moveAlongPoints(
+      request,
+      this.getResponseRoute(serverId).slice(1),
+      260,
+    );
   }
 
   private completeRequest(requestId: number): void {
@@ -856,37 +1066,33 @@ export class ArchitectureScene extends Phaser.Scene {
     if (!request) {
       return;
     }
-    const database = this.getNodePosition("database");
-    request.setAlpha(1).setScale(0.75);
+    const entry = this.getNodePosition("entry");
+    request.setPosition(entry.x, entry.y).setAlpha(1).setScale(0.8);
     this.tweens.add({
       targets: request,
-      x: database.x,
-      y: database.y,
-      duration: 240,
+      scale: 1.2,
+      alpha: 0,
+      duration: 300,
       onComplete: () => {
-        this.tweens.add({
-          targets: request,
-          x: WIDTH + 20,
-          alpha: 0,
-          duration: 220,
-          onComplete: () => this.destroyRequest(requestId),
-        });
+        this.destroyRequest(requestId);
       },
     });
   }
 
-  private failRequest(requestId: number): void {
+  private failRequest(requestId: number, reason: string): void {
     const request = this.requestViews.get(requestId);
     if (!request) {
       return;
     }
     request.add(
       this.add
-        .text(0, -18, "!", {
-          color: "#e25f73",
+        .text(0, -24, reason, {
+          color: "#c43f52",
           fontFamily: "Arial",
-          fontSize: "14px",
+          fontSize: reason.length > 4 ? "8px" : "12px",
           fontStyle: "bold",
+          backgroundColor: "#fff4f5",
+          padding: { x: 5, y: 3 },
         })
         .setOrigin(0.5),
     );
@@ -895,7 +1101,7 @@ export class ArchitectureScene extends Phaser.Scene {
       y: request.y + 30,
       alpha: 0,
       angle: 25,
-      duration: 280,
+      duration: 520,
       onComplete: () => this.destroyRequest(requestId),
     });
   }
@@ -906,17 +1112,17 @@ export class ArchitectureScene extends Phaser.Scene {
     activeCount: number,
   ): void {
     const node = this.nodes.get(serverId === 0 ? "serverA" : "serverB");
-    if (!node?.pressure || !node.queueText || !node.face) {
+    if (!node?.pressure || !node.queueText || !node.stateText) {
       return;
     }
     const pressure = Math.min(
       1,
-      (queueLength / 7) * 0.75 + (activeCount / 2) * 0.25,
+      (queueLength / 6) * 0.75 + (activeCount / 2) * 0.25,
     );
     node.queueText.setText(`대기 ${queueLength}`);
-    node.face.setText(
-      pressure >= 0.85 ? "×︵×" : pressure >= 0.6 ? "•△•" : "•ᴗ•",
-    );
+    node.stateText
+      .setText(pressure >= 0.85 ? "CRITICAL" : pressure >= 0.6 ? "DELAY" : "APP")
+      .setColor(pressure >= 0.85 ? "#ffd7dd" : "#ffffff");
     node.pressure.clear();
     node.pressure.lineStyle(6, 0xe5dfd2, 0.65);
     node.pressure.strokeCircle(0, 0, 40);
@@ -928,6 +1134,57 @@ export class ArchitectureScene extends Phaser.Scene {
           : pressure >= 0.6
             ? COLORS.orange
             : COLORS.mint,
+        0.95,
+      );
+      node.pressure.beginPath();
+      node.pressure.arc(
+        0,
+        0,
+        40,
+        Phaser.Math.DegToRad(-90),
+        Phaser.Math.DegToRad(-90 + 360 * pressure),
+        false,
+      );
+      node.pressure.strokePath();
+    }
+  }
+
+  private updateDatabaseState(
+    queueLength: number,
+    activeCount: number,
+  ): void {
+    const node = this.nodes.get("database");
+    if (!node?.pressure || !node.queueText || !node.stateText) {
+      return;
+    }
+    const queueCapacity = this.architecture.databaseIndexed ? 14 : 8;
+    const pressure = Math.min(
+      1,
+      (queueLength / queueCapacity) * 0.75 + (activeCount / 2) * 0.25,
+    );
+    node.queueText.setText(
+      `대기 ${queueLength}${this.architecture.databaseIndexed ? " · INDEX" : ""}`,
+    );
+    node.stateText
+      .setText(
+        pressure >= 0.85
+          ? "HOT"
+          : this.architecture.databaseIndexed
+            ? "INDEX"
+            : "DB",
+      )
+      .setColor(pressure >= 0.85 ? "#a82f43" : "#0074a8");
+    node.pressure.clear();
+    node.pressure.lineStyle(6, 0xe5dfd2, 0.65);
+    node.pressure.strokeCircle(0, 0, 40);
+    if (pressure > 0) {
+      node.pressure.lineStyle(
+        7,
+        pressure >= 0.85
+          ? COLORS.red
+          : pressure >= 0.6
+            ? COLORS.orange
+            : COLORS.yellow,
         0.95,
       );
       node.pressure.beginPath();
@@ -956,6 +1213,24 @@ export class ArchitectureScene extends Phaser.Scene {
     return [
       this.getNodePosition("entry"),
       this.getNodePosition("serverA"),
+    ];
+  }
+
+  private getResponseRoute(serverId: number): Phaser.Math.Vector2[] {
+    const serverNode: ArchitectureNodeId =
+      serverId === 0 ? "serverA" : "serverB";
+    if (hasBalancedRoute(this.architecture)) {
+      return [
+        this.getNodePosition("database"),
+        this.getNodePosition(serverNode),
+        this.getNodePosition("loadBalancer"),
+        this.getNodePosition("entry"),
+      ];
+    }
+    return [
+      this.getNodePosition("database"),
+      this.getNodePosition("serverA"),
+      this.getNodePosition("entry"),
     ];
   }
 
@@ -1054,6 +1329,9 @@ export class ArchitectureScene extends Phaser.Scene {
         return false;
       }
       const candidate = this.architecture.nodePositions[nodeId];
+      if (!candidate) {
+        return false;
+      }
       return (
         candidate.column === position.column &&
         candidate.row === position.row
@@ -1070,13 +1348,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private isNodeActive(nodeId: ArchitectureNodeId): boolean {
-    if (nodeId === "loadBalancer") {
-      return this.architecture.hasLoadBalancer;
-    }
-    if (nodeId === "serverB") {
-      return this.architecture.serverCount === 2;
-    }
-    return true;
+    return isArchitectureNodePlaced(this.architecture, nodeId);
   }
 
   private findNodeAt(
@@ -1103,6 +1375,7 @@ export class ArchitectureScene extends Phaser.Scene {
         completed: this.progress.completed,
         failed: this.progress.failed,
         queueByServer: [...this.progress.queueByServer] as [number, number],
+        databaseQueue: this.progress.databaseQueue,
       },
     });
   }
@@ -1124,9 +1397,11 @@ export class ArchitectureScene extends Phaser.Scene {
       completed: 0,
       failed: 0,
       queueByServer: [0, 0],
+      databaseQueue: 0,
     };
     this.updateServerState(0, 0, 0);
     this.updateServerState(1, 0, 0);
+    this.updateDatabaseState(0, 0);
     this.emitProgress();
   }
 
@@ -1138,7 +1413,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.resetTraffic();
     this.applyArchitecture(false);
     this.statusText.setText(
-      "우클릭: 정보 · 우클릭 드래그: 연결 또는 이동",
+      "좌클릭: 정보 · 좌클릭 드래그: 이동 · 우클릭 드래그: 연결",
     );
   }
 

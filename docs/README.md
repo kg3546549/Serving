@@ -2,7 +2,19 @@
 
 문서는 현재 코드, 향후 확장 기획, 이전 컨셉 보관안으로 구분합니다. 실제 동작을 확인할 때는 현재 구현 문서를 우선합니다.
 
+## 변경 이력
+
+- [커밋 SHA 기반 변경 이력 관리](./history/README.md)
+- [변경 이력 문서 템플릿](./history/_template.md)
+
 ## 1. 현재 구현 기준
+
+### [서비스 도메인 캠페인과 Stage 1 구현 아키텍처](./service-domain-campaign-architecture-ko.md)
+
+- 구현 난이도 순으로 정렬한 8개 서비스 도메인
+- Stage 1의 10개 HTTPS 웨이브
+- 요청 → 서버 → DB → 응답 생명주기
+- 적, 장비, DB 병목 설계
 
 ### [현재 구현 상세](./current-implementation-ko.md)
 
@@ -57,4 +69,3 @@ React 19 + TypeScript
 ```
 
 React Flow는 현재 플레이 화면에 사용하지 않습니다. 추후 스테이지 제작 도구가 필요할 때만 후보로 검토합니다.
-

@@ -23,45 +23,53 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         <div className="help-mascot" aria-hidden="true">
           ?
         </div>
-        <h2 id="help-title">설계하고 병목을 막으세요</h2>
+        <h2 id="help-title">요청이 응답으로 돌아오게 구성하세요</h2>
         <p className="help-lead">
-          장비를 짧게 우클릭하면 상세정보가 열립니다. 우클릭 드래그 후
-          다른 장비에 놓으면 간선, 빈 격자에 놓으면 위치가 바뀝니다.
+          트래픽 입구만 고정되어 있습니다. App Server와 Primary DB를
+          상점에서 구매하고 배치한 뒤 장비 사이 경로를 연결하세요.
         </p>
 
         <div className="reaction-guide">
           <div>
             <span className="reaction-icon open">＋</span>
-            <strong>장비 이동</strong>
-            <p>우클릭 드래그로 모든 활성 장비를 빈 격자 칸에 옮깁니다.</p>
+            <strong>구매·배치</strong>
+            <p>상점에서 구매한 장비를 보유 목록에서 드래그합니다.</p>
           </div>
           <div>
             <span className="reaction-icon blocked">≋</span>
             <strong>간선 연결</strong>
-            <p>장비를 우클릭 드래그해 다른 장비 위에서 놓습니다.</p>
+            <p>우클릭 또는 Shift+좌클릭 드래그로 장비를 연결합니다.</p>
           </div>
           <div>
             <span className="reaction-icon closed">!</span>
-            <strong>자동 웨이브</strong>
-            <p>하단 준비 게이지가 가득 차면 웨이브가 자동 시작됩니다.</p>
+            <strong>요청 생명주기</strong>
+            <p>서버 처리 후 DB 작업과 응답 반환까지 끝나야 성공입니다.</p>
           </div>
         </div>
 
         <details className="learn-more">
           <summary>어떤 경로를 그려야 하나요?</summary>
           <p>
-            첫 웨이브는 입구 → 앱 서버 A → 데이터베이스를 연결합니다.
-            확장 후에는 입구 → 로드밸런서 → 서버 A/B → 데이터베이스의
-            다섯 연결이 모두 필요합니다. 같은 간선을 다시 그리면 제거됩니다.
+            Wave 1은 입구 → App Server A → Primary DB를 연결합니다.
+            Wave 5부터는 입구 → Load Balancer → 서버 A/B → DB의 분산
+            경로를 만들 수 있습니다. 입구 위치는 이동할 수 없습니다.
           </p>
         </details>
 
         <details className="learn-more">
-          <summary>상점과 준비 시간</summary>
+          <summary>DB는 무엇을 하나요?</summary>
           <p>
-            우측 상점에서 신규 장비를 구매·배치하고 레벨을 올리거나 상품을
-            리롤할 수 있습니다. 도움말과 장비 상세정보를 보는 동안 준비
-            타이머는 일시 정지됩니다.
+            GET은 DB 읽기, POST는 DB 저장을 수행합니다. DB에도 동시 처리
+            슬롯과 Queue가 있으므로 서버만 증설하면 DB가 다음 병목이 됩니다.
+            Wave 8부터 DB Index를 구매해 Slow Query를 줄일 수 있습니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
+          <summary>실패와 서비스 HP</summary>
+          <p>
+            Queue 초과와 응답 제한시간 초과 요청은 서비스 HP를 감소시킵니다.
+            점검시간마다 장비를 구매·재배치한 뒤 다음 웨이브로 진행합니다.
           </p>
         </details>
 

@@ -4,6 +4,7 @@ import type {
 } from "../simulation/trafficSimulation";
 
 interface NodeGestureInput {
+  mode: "move" | "connect";
   dragged: boolean;
   movementDistance?: number;
   source: ArchitectureNodeId;
@@ -27,6 +28,7 @@ export type NodeGestureResult =
   | { type: "invalid" };
 
 export function resolveNodeGesture({
+  mode,
   dragged,
   movementDistance = 0,
   source,
@@ -36,13 +38,13 @@ export function resolveNodeGesture({
 }: NodeGestureInput): NodeGestureResult {
   const moved = dragged || movementDistance >= 9;
 
-  if (!moved) {
+  if (!moved && mode === "move") {
     return { type: "details", nodeId: source };
   }
-  if (target) {
+  if (mode === "connect" && moved && target) {
     return { type: "connect", from: source, to: target };
   }
-  if (position && !positionOccupied) {
+  if (mode === "move" && moved && position && !positionOccupied) {
     return { type: "move", nodeId: source, position };
   }
   return { type: "invalid" };

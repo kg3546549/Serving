@@ -1,16 +1,27 @@
+import type { NetworkProtocol } from "../campaign/campaignData";
 import type { LiveWaveMetrics } from "../store/gameStore";
 
 interface MissionHudProps {
+  stageNumber: number;
+  stageName: string;
   waveNumber: number;
+  waveCount: number;
   waveTotal: number;
+  protocol: NetworkProtocol;
+  serviceHp: number;
   liveMetrics: LiveWaveMetrics;
   isRunning: boolean;
   onHelp: () => void;
 }
 
 export function MissionHud({
+  stageNumber,
+  stageName,
   waveNumber,
+  waveCount,
   waveTotal,
+  protocol,
+  serviceHp,
   liveMetrics,
   isRunning,
   onHelp,
@@ -21,24 +32,44 @@ export function MissionHud({
 
   return (
     <header className="mission-hud">
-      <div className="stage-chip" aria-label="현재 스테이지 3">
+      <div
+        className="stage-chip"
+        aria-label={`현재 스테이지 ${stageNumber}`}
+      >
         <small>STAGE</small>
-        <span>03</span>
+        <span>{String(stageNumber).padStart(2, "0")}</span>
       </div>
 
       <div className="mission-title">
         <div>
-          <strong>서버 한 대의 한계</strong>
-          <span>WAVE 0{waveNumber} / 02</span>
+          <strong>{stageName}</strong>
+          <span>
+            {protocol} · WAVE {String(waveNumber).padStart(2, "0")} /{" "}
+            {String(waveCount).padStart(2, "0")}
+          </span>
         </div>
-        <div className="wave-progress" aria-label={`요청 처리 ${settledRequests}/${waveTotal}`}>
+        <div
+          className="wave-progress"
+          aria-label={`요청 처리 ${settledRequests}/${waveTotal}`}
+        >
           <i style={{ width: `${progressPercent}%` }} />
         </div>
       </div>
 
       <div className="mini-resources">
+        <span
+          className="mini-resource hp"
+          aria-label={`서비스 HP ${serviceHp}`}
+        >
+          <small>SERVICE HP</small>
+          <strong>♥ {serviceHp}</strong>
+        </span>
         <span className="mini-resource traffic" aria-live="polite">
-          <small>{isRunning ? "LIVE TRAFFIC" : "REQUESTS"}</small>
+          <small>
+            {isRunning
+              ? `DB Q ${liveMetrics.databaseQueue}`
+              : "REQUESTS"}
+          </small>
           <strong>
             {isRunning ? `${liveMetrics.completed} / ${waveTotal}` : waveTotal}
           </strong>

@@ -1,76 +1,70 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_NODE_POSITIONS } from "../simulation/trafficSimulation";
-import {
-  getShopPrice,
-  getShopUpgradeCost,
-  LOAD_BALANCER_COST,
-  SECOND_SERVER_COST,
-  useGameStore,
-} from "./gameStore";
+import { STAGE_ONE_WAVES } from "../campaign/campaignData";
+import { simulateTrafficWave } from "../simulation/trafficSimulation";
+import { useGameStore } from "./gameStore";
 
-describe("shop economy", () => {
-  it("applies the current reroll discount to equipment prices", () => {
-    expect(
-      getShopPrice(LOAD_BALANCER_COST, 1, 1, "loadBalancer"),
-    ).toBe(68);
-    expect(
-      getShopPrice(SECOND_SERVER_COST, 1, 0, "logicServer"),
-    ).toBe(90);
-  });
-
-  it("adds a five percent discount for each shop level", () => {
-    expect(
-      getShopPrice(LOAD_BALANCER_COST, 3, 0, "loadBalancer"),
-    ).toBe(72);
-    expect(
-      getShopPrice(SECOND_SERVER_COST, 3, 0, "logicServer"),
-    ).toBe(80);
-  });
-
-  it("stops shop upgrades at level three", () => {
-    expect(getShopUpgradeCost(1)).toBe(60);
-    expect(getShopUpgradeCost(2)).toBe(100);
-    expect(getShopUpgradeCost(3)).toBeNull();
-  });
-
-  it("spends currency on level upgrades, rerolls, placement, and movement", () => {
-    useGameStore.setState({
-      phase: "prepare",
-      coins: 300,
-      expansionUnlocked: true,
-      shopLevel: 1,
-      shopRotation: 0,
-      architecture: {
-        serverCount: 1,
-        hasLoadBalancer: false,
-        nodePositions: { ...DEFAULT_NODE_POSITIONS },
-        connections: [],
-      },
-    });
-
-    useGameStore.getState().upgradeShop();
-    expect(useGameStore.getState().shopLevel).toBe(2);
-    expect(useGameStore.getState().coins).toBe(240);
-
-    useGameStore.getState().rerollShop();
-    expect(useGameStore.getState().shopRotation).toBe(1);
-    expect(useGameStore.getState().coins).toBe(225);
-
-    useGameStore
-      .getState()
-      .placeSystem("loadBalancer", { column: 2, row: 3 });
-    expect(useGameStore.getState().architecture.hasLoadBalancer).toBe(true);
-    expect(
-      useGameStore.getState().architecture.nodePositions.loadBalancer,
-    ).toEqual({ column: 2, row: 3 });
-
-    useGameStore
-      .getState()
-      .moveNode("loadBalancer", { column: 3, row: 3 });
-    expect(
-      useGameStore.getState().architecture.nodePositions.loadBalancer,
-    ).toEqual({ column: 3, row: 3 });
-
+describe("campaign store", () => {
+  it("starts with only the fixed ingress and no owned equipment", () => {
     useGameStore.getState().resetCampaign();
+    const state = useGameStore.getState();
+
+    expect(state.ownedNodes).toEqual([]);
+    expect(state.architecture.serverCount).toBe(0);
+    expect(state.architecture.hasDatabase).toBe(false);
+    expect(state.architecture.nodePositions.entry).toEqual({
+      column: 0,
+      row: 1,
+    });
+  });
+
+  it("buys, places, and connects the minimum Stage 1 architecture", () => {
+    useGameStore.getState().resetCampaign();
+    useGameStore.getState().purchaseSystem("serverA");
+    useGameStore.getState().purchaseSystem("database");
+    useGameStore.getState().placeNode("serverA", { column: 4, row: 1 });
+    useGameStore.getState().placeNode("database", { column: 8, row: 1 });
+    useGameStore.getState().toggleConnection("entry", "serverA");
+    useGameStore.getState().toggleConnection("serverA", "database");
+
+    const state = useGameStore.getState();
+    expect(state.coins).toBe(100);
+    expect(state.ownedNodes).toEqual(["serverA", "database"]);
+    expect(state.architecture.connections).toHaveLength(2);
+  });
+
+  it("keeps later-stage equipment locked until its wave", () => {
+    useGameStore.getState().resetCampaign();
+    useGameStore.getState().purchaseSystem("loadBalancer");
+    expect(useGameStore.getState().ownedNodes).not.toContain("loadBalancer");
+
+    useGameStore.setState({ waveIndex: 4, coins: 300 });
+    useGameStore.getState().purchaseSystem("loadBalancer");
+    expect(useGameStore.getState().ownedNodes).toContain("loadBalancer");
+  });
+
+  it("does not allow the fixed ingress to move", () => {
+    useGameStore.getState().resetCampaign();
+    useGameStore.getState().moveNode("entry", { column: 3, row: 2 });
+    expect(useGameStore.getState().architecture.nodePositions.entry).toEqual({
+      column: 0,
+      row: 1,
+    });
+  });
+
+  it("reduces service HP and advances after a failed wave", () => {
+    useGameStore.getState().resetCampaign();
+    const result = simulateTrafficWave(
+      STAGE_ONE_WAVES[0],
+      useGameStore.getState().architecture,
+    );
+    useGameStore.setState({ phase: "running" });
+
+    useGameStore.getState().completeWave(result);
+    expect(useGameStore.getState().serviceHp).toBe(91);
+    expect(useGameStore.getState().phase).toBe("result");
+
+    useGameStore.getState().continueAfterResult();
+    expect(useGameStore.getState().waveIndex).toBe(1);
+    expect(useGameStore.getState().phase).toBe("prepare");
   });
 });

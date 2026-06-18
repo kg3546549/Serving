@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { resolveNodeGesture } from "./nodeGesture";
 
 describe("resolveNodeGesture", () => {
-  it("opens details after a short right click", () => {
+  it("opens details after a short left click", () => {
     expect(
       resolveNodeGesture({
+        mode: "move",
         dragged: false,
         source: "entry",
         target: null,
@@ -17,6 +18,7 @@ describe("resolveNodeGesture", () => {
   it("connects nodes when a right drag ends on another device", () => {
     expect(
       resolveNodeGesture({
+        mode: "connect",
         dragged: true,
         source: "entry",
         target: "serverA",
@@ -26,9 +28,10 @@ describe("resolveNodeGesture", () => {
     ).toEqual({ type: "connect", from: "entry", to: "serverA" });
   });
 
-  it("moves a node when a right drag ends on an empty grid cell", () => {
+  it("moves a node when a left drag ends on an empty grid cell", () => {
     expect(
       resolveNodeGesture({
+        mode: "move",
         dragged: true,
         source: "entry",
         target: null,
@@ -45,6 +48,7 @@ describe("resolveNodeGesture", () => {
   it("uses release distance when intermediate pointer moves are missing", () => {
     expect(
       resolveNodeGesture({
+        mode: "move",
         dragged: false,
         movementDistance: 120,
         source: "serverA",
@@ -62,6 +66,7 @@ describe("resolveNodeGesture", () => {
   it("rejects a right drag ending outside an available cell", () => {
     expect(
       resolveNodeGesture({
+        mode: "move",
         dragged: true,
         source: "entry",
         target: null,

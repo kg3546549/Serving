@@ -3,7 +3,9 @@ import type { WaveSimulationResult } from "../simulation/trafficSimulation";
 interface ResultModalProps {
   result: WaveSimulationResult;
   finalClear: boolean;
-  expansionUnlocked: boolean;
+  defeated: boolean;
+  serviceHp: number;
+  hpDamage: number;
   onContinue: () => void;
   onRestart: () => void;
 }
@@ -11,16 +13,18 @@ interface ResultModalProps {
 export function ResultModal({
   result,
   finalClear,
-  expansionUnlocked,
+  defeated,
+  serviceHp,
+  hpDamage,
   onContinue,
   onRestart,
 }: ResultModalProps): React.JSX.Element {
   const successPercent = Math.round(result.metrics.successRate * 100);
-  const title = finalClear
-    ? "서비스를 지켰어요!"
-    : result.metrics.passed
-      ? "첫 웨이브 완료"
-      : "서버가 버티지 못했어요";
+  const title = defeated
+    ? "서비스 운영 종료"
+    : finalClear
+      ? "운영 일정 완료"
+      : "서비스 점검시간";
 
   return (
     <div className="soft-overlay">
@@ -30,11 +34,8 @@ export function ResultModal({
         aria-modal="true"
         aria-labelledby="result-title"
       >
-        <div
-          className={`result-face ${result.metrics.passed ? "success" : "failure"}`}
-          aria-hidden="true"
-        >
-          {result.metrics.passed ? "ᵔᴗᵔ" : "•︵•"}
+        <div className="result-status-icon" aria-hidden="true">
+          {result.metrics.passed ? "✓" : "!"}
         </div>
         <h2 id="result-title">{title}</h2>
         <p className="result-caption">{result.bottleneck}</p>
@@ -49,29 +50,51 @@ export function ResultModal({
             <span>평균 지연</span>
           </div>
           <div>
-            <strong>{result.metrics.peakQueue}</strong>
-            <span>최대 Queue</span>
+            <strong>{result.metrics.peakServerQueue}</strong>
+            <span>Server Queue</span>
           </div>
           <div>
             <strong>+{result.metrics.earnedCoins}</strong>
             <span>획득 코인</span>
           </div>
+          <div>
+            <strong>{result.metrics.peakDatabaseQueue}</strong>
+            <span>DB Queue</span>
+          </div>
+          <div>
+            <strong>{result.metrics.writeCompleted}</strong>
+            <span>저장 완료</span>
+          </div>
         </div>
 
-        {expansionUnlocked && !result.metrics.passed && (
+        <div className="hp-damage-report">
+          <span>서비스 HP</span>
+          <strong>
+            {serviceHp} <small>(-{hpDamage})</small>
+          </strong>
+        </div>
+
+        {result.wave.id === 4 && (
           <div className="unlock-callout">
             <strong>새 시스템 해금</strong>
-            <span>Load Balancer · Logic Server B</span>
+            <span>Load Balancer · App Server B</span>
           </div>
         )}
 
-        {finalClear ? (
+        {result.wave.id === 7 && (
+          <div className="unlock-callout">
+            <strong>새 시스템 해금</strong>
+            <span>DB Index · Slow Query 최적화</span>
+          </div>
+        )}
+
+        {finalClear || defeated ? (
           <button type="button" className="soft-primary" onClick={onRestart}>
             처음부터 다시
           </button>
         ) : (
           <button type="button" className="soft-primary" onClick={onContinue}>
-            {result.metrics.passed ? "다음 웨이브" : "구조 다시 설계"}
+            점검시간 시작
           </button>
         )}
       </section>

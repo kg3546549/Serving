@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import type {
   ArchitectureNodeId,
-  BuildSystemType,
   GridPosition,
   WaveSimulationResult,
 } from "../simulation/trafficSimulation";
@@ -13,7 +12,7 @@ import {
   gameEvents,
   type WaveCompletePayload,
   type WaveProgressPayload,
-  type SystemPlacementPayload,
+  type NodePlacementPayload,
   type ConnectionRequestPayload,
   type NodeDetailsRequestPayload,
   type NodeMoveRequestPayload,
@@ -23,8 +22,8 @@ interface GameHostProps {
   onReady: () => void;
   onWaveProgress: (metrics: LiveWaveMetrics) => void;
   onWaveComplete: (result: WaveSimulationResult) => void;
-  onSystemPlacement: (
-    systemType: BuildSystemType,
+  onNodePlacement: (
+    nodeId: ArchitectureNodeId,
     position: GridPosition,
   ) => void;
   onConnectionRequest: (
@@ -42,7 +41,7 @@ export function GameHost({
   onReady,
   onWaveProgress,
   onWaveComplete,
-  onSystemPlacement,
+  onNodePlacement,
   onConnectionRequest,
   onNodeMove,
   onNodeDetails,
@@ -66,9 +65,9 @@ export function GameHost({
       GAME_EVENTS.WAVE_COMPLETE,
       ({ result }) => onWaveComplete(result),
     );
-    const unsubscribePlacement = gameEvents.on<SystemPlacementPayload>(
-      GAME_EVENTS.SYSTEM_PLACEMENT_REQUEST,
-      ({ systemType, position }) => onSystemPlacement(systemType, position),
+    const unsubscribePlacement = gameEvents.on<NodePlacementPayload>(
+      GAME_EVENTS.NODE_PLACEMENT_REQUEST,
+      ({ nodeId, position }) => onNodePlacement(nodeId, position),
     );
     const unsubscribeConnection = gameEvents.on<ConnectionRequestPayload>(
       GAME_EVENTS.CONNECTION_REQUEST,
@@ -118,7 +117,7 @@ export function GameHost({
     onReady,
     onNodeDetails,
     onNodeMove,
-    onSystemPlacement,
+    onNodePlacement,
     onWaveComplete,
     onWaveProgress,
   ]);

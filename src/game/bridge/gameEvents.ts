@@ -1,7 +1,6 @@
 import type {
   ArchitectureConfig,
   ArchitectureNodeId,
-  BuildSystemType,
   GridPosition,
   WaveSimulationResult,
 } from "../../simulation/trafficSimulation";
@@ -13,10 +12,10 @@ export const GAME_EVENTS = {
   WAVE_REQUEST: "wave:request",
   WAVE_PROGRESS: "wave:progress",
   WAVE_COMPLETE: "wave:complete",
-  BUILD_SELECT: "build:select",
   BUILD_CANCEL: "build:cancel",
-  BUILD_DROP: "build:drop",
-  SYSTEM_PLACEMENT_REQUEST: "system:placement-request",
+  INVENTORY_SELECT: "inventory:select",
+  INVENTORY_DROP: "inventory:drop",
+  NODE_PLACEMENT_REQUEST: "node:placement-request",
   CONNECTION_REQUEST: "connection:request",
   NODE_MOVE_REQUEST: "node:move-request",
   NODE_DETAILS_REQUEST: "node:details-request",
@@ -35,16 +34,17 @@ export interface ArchitecturePayload {
   architecture: ArchitectureConfig;
 }
 
-export interface BuildSelectPayload {
-  systemType: BuildSystemType;
+export interface InventorySelectPayload {
+  nodeId: ArchitectureNodeId;
 }
 
-export interface BuildDropPayload extends BuildSelectPayload {
+export interface InventoryDropPayload extends InventorySelectPayload {
   x: number;
   y: number;
 }
 
-export interface SystemPlacementPayload extends BuildSelectPayload {
+export interface NodePlacementPayload {
+  nodeId: ArchitectureNodeId;
   position: GridPosition;
 }
 
