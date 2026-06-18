@@ -16,11 +16,23 @@ export interface ArchitectureConnection {
   to: ArchitectureNodeId;
 }
 
+export type ArchitectureNodePositions = Record<
+  ArchitectureNodeId,
+  GridPosition
+>;
+
+export const DEFAULT_NODE_POSITIONS: ArchitectureNodePositions = {
+  entry: { column: 0, row: 1 },
+  loadBalancer: { column: 2, row: 1 },
+  serverA: { column: 5, row: 0 },
+  serverB: { column: 5, row: 2 },
+  database: { column: 8, row: 1 },
+};
+
 export interface ArchitectureConfig {
   serverCount: 1 | 2;
   hasLoadBalancer: boolean;
-  loadBalancerPosition?: GridPosition;
-  secondServerPosition?: GridPosition;
+  nodePositions: ArchitectureNodePositions;
   connections: ArchitectureConnection[];
 }
 

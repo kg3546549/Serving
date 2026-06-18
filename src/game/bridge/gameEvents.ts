@@ -18,6 +18,8 @@ export const GAME_EVENTS = {
   BUILD_DROP: "build:drop",
   SYSTEM_PLACEMENT_REQUEST: "system:placement-request",
   CONNECTION_REQUEST: "connection:request",
+  NODE_MOVE_REQUEST: "node:move-request",
+  NODE_DETAILS_REQUEST: "node:details-request",
   RESET_WORLD: "world:reset",
 } as const;
 
@@ -49,6 +51,15 @@ export interface SystemPlacementPayload extends BuildSelectPayload {
 export interface ConnectionRequestPayload {
   from: ArchitectureNodeId;
   to: ArchitectureNodeId;
+}
+
+export interface NodeMoveRequestPayload {
+  nodeId: ArchitectureNodeId;
+  position: GridPosition;
+}
+
+export interface NodeDetailsRequestPayload {
+  nodeId: ArchitectureNodeId;
 }
 
 type EventListener = (payload: unknown) => void;

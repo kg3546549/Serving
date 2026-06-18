@@ -25,25 +25,25 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         </div>
         <h2 id="help-title">설계하고 병목을 막으세요</h2>
         <p className="help-lead">
-          장비 사이를 드래그해 트래픽 길을 그리세요. 확장 장비는 카드를
-          빈 격자 칸으로 드래그하거나, 카드를 선택한 뒤 칸을 눌러 배치합니다.
+          장비를 짧게 우클릭하면 상세정보가 열립니다. 우클릭 드래그 후
+          다른 장비에 놓으면 간선, 빈 격자에 놓으면 위치가 바뀝니다.
         </p>
 
         <div className="reaction-guide">
           <div>
             <span className="reaction-icon open">＋</span>
-            <strong>격자 배치</strong>
-            <p>해금된 장비를 비어 있는 격자 칸 어디든 배치합니다.</p>
+            <strong>장비 이동</strong>
+            <p>우클릭 드래그로 모든 활성 장비를 빈 격자 칸에 옮깁니다.</p>
           </div>
           <div>
             <span className="reaction-icon blocked">≋</span>
-            <strong>경로 연결</strong>
-            <p>장비에서 다른 장비까지 직접 선을 그려 요청 경로를 만듭니다.</p>
+            <strong>간선 연결</strong>
+            <p>장비를 우클릭 드래그해 다른 장비 위에서 놓습니다.</p>
           </div>
           <div>
             <span className="reaction-icon closed">!</span>
-            <strong>병목 관찰</strong>
-            <p>Queue와 압력 링을 보고 서버가 막히는 위치를 확인합니다.</p>
+            <strong>자동 웨이브</strong>
+            <p>하단 준비 게이지가 가득 차면 웨이브가 자동 시작됩니다.</p>
           </div>
         </div>
 
@@ -52,16 +52,16 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <p>
             첫 웨이브는 입구 → 앱 서버 A → 데이터베이스를 연결합니다.
             확장 후에는 입구 → 로드밸런서 → 서버 A/B → 데이터베이스의
-            다섯 연결이 모두 필요합니다.
+            다섯 연결이 모두 필요합니다. 같은 간선을 다시 그리면 제거됩니다.
           </p>
         </details>
 
         <details className="learn-more">
-          <summary>클리어 조건</summary>
+          <summary>상점과 준비 시간</summary>
           <p>
-            Wave 1은 성공률 95%, Wave 2는 성공률 90% 이상이 목표입니다.
-            같은 선을 다시 그리면 연결이 제거되며, 실패해도 번 코인과 설치
-            시설은 유지됩니다.
+            우측 상점에서 신규 장비를 구매·배치하고 레벨을 올리거나 상품을
+            리롤할 수 있습니다. 도움말과 장비 상세정보를 보는 동안 준비
+            타이머는 일시 정지됩니다.
           </p>
         </details>
 

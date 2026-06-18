@@ -15,6 +15,8 @@ import {
   type WaveProgressPayload,
   type SystemPlacementPayload,
   type ConnectionRequestPayload,
+  type NodeDetailsRequestPayload,
+  type NodeMoveRequestPayload,
 } from "./bridge/gameEvents";
 
 interface GameHostProps {
@@ -29,6 +31,11 @@ interface GameHostProps {
     from: ArchitectureNodeId,
     to: ArchitectureNodeId,
   ) => void;
+  onNodeMove: (
+    nodeId: ArchitectureNodeId,
+    position: GridPosition,
+  ) => void;
+  onNodeDetails: (nodeId: ArchitectureNodeId) => void;
 }
 
 export function GameHost({
@@ -37,6 +44,8 @@ export function GameHost({
   onWaveComplete,
   onSystemPlacement,
   onConnectionRequest,
+  onNodeMove,
+  onNodeDetails,
 }: GameHostProps): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +74,14 @@ export function GameHost({
       GAME_EVENTS.CONNECTION_REQUEST,
       ({ from, to }) => onConnectionRequest(from, to),
     );
+    const unsubscribeMove = gameEvents.on<NodeMoveRequestPayload>(
+      GAME_EVENTS.NODE_MOVE_REQUEST,
+      ({ nodeId, position }) => onNodeMove(nodeId, position),
+    );
+    const unsubscribeDetails = gameEvents.on<NodeDetailsRequestPayload>(
+      GAME_EVENTS.NODE_DETAILS_REQUEST,
+      ({ nodeId }) => onNodeDetails(nodeId),
+    );
 
     const game = new Phaser.Game({
       type: Phaser.WEBGL,
@@ -91,11 +108,15 @@ export function GameHost({
       unsubscribeComplete();
       unsubscribePlacement();
       unsubscribeConnection();
+      unsubscribeMove();
+      unsubscribeDetails();
       game.destroy(true);
     };
   }, [
     onConnectionRequest,
     onReady,
+    onNodeDetails,
+    onNodeMove,
     onSystemPlacement,
     onWaveComplete,
     onWaveProgress,

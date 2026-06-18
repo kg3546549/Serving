@@ -19,6 +19,7 @@ import {
   type BuildDropPayload,
   type BuildSelectPayload,
 } from "./bridge/gameEvents";
+import { resolveNodeGesture } from "./nodeGesture";
 
 interface NodeView {
   id: ArchitectureNodeId;
@@ -34,6 +35,13 @@ interface GridCellView {
   rectangle: Phaser.GameObjects.Rectangle;
 }
 
+interface NodeGesture {
+  nodeId: ArchitectureNodeId;
+  startX: number;
+  startY: number;
+  dragged: boolean;
+}
+
 const WIDTH = 1200;
 const HEIGHT = 720;
 const PLAYBACK_SCALE = 0.78;
@@ -44,14 +52,6 @@ const GRID = {
   top: 160,
   cellWidth: 110,
   cellHeight: 100,
-};
-const FIXED_POSITIONS: Record<
-  "entry" | "serverA" | "database",
-  GridPosition
-> = {
-  entry: { column: 0, row: 1 },
-  serverA: { column: 5, row: 0 },
-  database: { column: 8, row: 1 },
 };
 const COLORS = {
   cream: 0xfff8e8,
@@ -78,6 +78,13 @@ export class ArchitectureScene extends Phaser.Scene {
   private architecture: ArchitectureConfig = {
     serverCount: 1,
     hasLoadBalancer: false,
+    nodePositions: {
+      entry: { column: 0, row: 1 },
+      loadBalancer: { column: 2, row: 1 },
+      serverA: { column: 5, row: 0 },
+      serverB: { column: 5, row: 2 },
+      database: { column: 8, row: 1 },
+    },
     connections: [],
   };
   private nodes = new Map<ArchitectureNodeId, NodeView>();
@@ -87,7 +94,8 @@ export class ArchitectureScene extends Phaser.Scene {
   private previewGraphics!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
   private activeBuildType: BuildSystemType | null = null;
-  private connectionSource: ArchitectureNodeId | null = null;
+  private nodeGesture: NodeGesture | null = null;
+  private moveTargetPosition: GridPosition | null = null;
   private activeTimers: Phaser.Time.TimerEvent[] = [];
   private isWaveRunning = false;
   private progress: LiveWaveMetrics = {
@@ -103,6 +111,7 @@ export class ArchitectureScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("#fff8e8");
+    this.input.mouse?.disableContextMenu();
     this.drawPastelWorld();
     this.createGrid();
     this.pathGraphics = this.add.graphics().setDepth(2);
@@ -212,8 +221,12 @@ export class ArchitectureScene extends Phaser.Scene {
           }
         });
         rectangle.on("pointerout", () => this.styleGridCell(position));
-        rectangle.on("pointerdown", () => {
-          if (this.activeBuildType && !this.isOccupied(position)) {
+        rectangle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+          if (
+            pointer.button === 0 &&
+            this.activeBuildType &&
+            !this.isOccupied(position)
+          ) {
             this.requestPlacement(this.activeBuildType, position);
           }
         });
@@ -225,31 +238,33 @@ export class ArchitectureScene extends Phaser.Scene {
   private createNodes(): void {
     this.nodes.set(
       "entry",
-      this.createEntryNode(this.gridToWorld(FIXED_POSITIONS.entry)),
+      this.createEntryNode(this.gridToWorld(this.architecture.nodePositions.entry)),
     );
     this.nodes.set(
       "serverA",
       this.createServerNode(
         "serverA",
-        this.gridToWorld(FIXED_POSITIONS.serverA),
+        this.gridToWorld(this.architecture.nodePositions.serverA),
         "앱 서버 A",
       ),
     );
     this.nodes.set(
       "database",
-      this.createDatabaseNode(this.gridToWorld(FIXED_POSITIONS.database)),
+      this.createDatabaseNode(
+        this.gridToWorld(this.architecture.nodePositions.database),
+      ),
     );
     this.nodes.set(
       "loadBalancer",
       this.createLoadBalancerNode(
-        this.gridToWorld({ column: 2, row: 1 }),
+        this.gridToWorld(this.architecture.nodePositions.loadBalancer),
       ),
     );
     this.nodes.set(
       "serverB",
       this.createServerNode(
         "serverB",
-        this.gridToWorld({ column: 5, row: 2 }),
+        this.gridToWorld(this.architecture.nodePositions.serverB),
         "앱 서버 B",
       ),
     );
@@ -410,20 +425,41 @@ export class ArchitectureScene extends Phaser.Scene {
       }
     });
     container.on("pointerout", () => container.setScale(1));
-    container.on("pointerdown", () => {
-      if (!this.isWaveRunning && this.isNodeActive(nodeId)) {
-        this.connectionSource = nodeId;
-        this.statusText.setText("선을 놓을 장비까지 드래그하세요");
+    container.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (
+        pointer.button === 2 &&
+        !this.isWaveRunning &&
+        this.isNodeActive(nodeId)
+      ) {
+        this.nodeGesture = {
+          nodeId,
+          startX: pointer.worldX,
+          startY: pointer.worldY,
+          dragged: false,
+        };
+        this.statusText.setText(
+          "다른 장비에 놓으면 연결 · 빈 격자에 놓으면 이동",
+        );
       }
     });
   }
 
   private bindPointerDrawing(): void {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (!this.connectionSource) {
+      if (!this.nodeGesture) {
         return;
       }
-      const source = this.getNodePosition(this.connectionSource);
+      const movement = Phaser.Math.Distance.Between(
+        this.nodeGesture.startX,
+        this.nodeGesture.startY,
+        pointer.worldX,
+        pointer.worldY,
+      );
+      if (movement < 9 && !this.nodeGesture.dragged) {
+        return;
+      }
+      this.nodeGesture.dragged = true;
+      const source = this.getNodePosition(this.nodeGesture.nodeId);
       this.previewGraphics.clear();
       this.previewGraphics.lineStyle(7, COLORS.mint, 0.78);
       this.previewGraphics.lineBetween(
@@ -432,25 +468,71 @@ export class ArchitectureScene extends Phaser.Scene {
         pointer.worldX,
         pointer.worldY,
       );
+      const gridPosition = this.worldToGrid(pointer.worldX, pointer.worldY);
+      const nextMoveTarget =
+        gridPosition &&
+        !this.findNodeAt(
+          pointer.worldX,
+          pointer.worldY,
+          this.nodeGesture.nodeId,
+        ) &&
+        !this.isOccupied(gridPosition, this.nodeGesture.nodeId)
+          ? gridPosition
+          : null;
+      if (
+        nextMoveTarget?.column !== this.moveTargetPosition?.column ||
+        nextMoveTarget?.row !== this.moveTargetPosition?.row
+      ) {
+        this.moveTargetPosition = nextMoveTarget;
+        this.refreshGrid();
+      }
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-      if (!this.connectionSource) {
+      if (!this.nodeGesture) {
         return;
       }
-      const source = this.connectionSource;
+      const gesture = this.nodeGesture;
+      const source = gesture.nodeId;
       const target = this.findNodeAt(pointer.worldX, pointer.worldY, source);
-      this.connectionSource = null;
+      this.nodeGesture = null;
+      this.moveTargetPosition = null;
       this.previewGraphics.clear();
-      if (target) {
-        gameEvents.emit(GAME_EVENTS.CONNECTION_REQUEST, {
-          from: source,
-          to: target,
+      const position = this.worldToGrid(pointer.worldX, pointer.worldY);
+      const resolution = resolveNodeGesture({
+        dragged: gesture.dragged,
+        source,
+        target,
+        position,
+        positionOccupied: position
+          ? this.isOccupied(position, source)
+          : true,
+      });
+
+      if (resolution.type === "details") {
+        gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, {
+          nodeId: resolution.nodeId,
         });
-        this.statusText.setText("경로를 연결했어요! 같은 선을 다시 그리면 제거됩니다");
+        this.statusText.setText("장비 상세정보를 열었습니다");
+      } else if (resolution.type === "connect") {
+        gameEvents.emit(GAME_EVENTS.CONNECTION_REQUEST, {
+          from: resolution.from,
+          to: resolution.to,
+        });
+        this.statusText.setText(
+          "경로를 연결했어요! 같은 선을 다시 그리면 제거됩니다",
+        );
+      } else if (resolution.type === "move") {
+        gameEvents.emit(GAME_EVENTS.NODE_MOVE_REQUEST, {
+          nodeId: resolution.nodeId,
+          position: resolution.position,
+        });
+        this.statusText.setText("장비 위치를 옮겼습니다");
       } else {
-        this.statusText.setText("장비 위에서 선을 놓아 주세요");
+        this.statusText.setText("빈 격자 칸이나 다른 장비 위에 놓아 주세요");
+        this.cameras.main.shake(100, 0.002);
       }
+      this.refreshGrid();
     });
   }
 
@@ -460,12 +542,17 @@ export class ArchitectureScene extends Phaser.Scene {
       .setStrokeStyle(3, COLORS.mint, 0.7)
       .setDepth(20);
     this.statusText = this.add
-      .text(WIDTH / 2, 102, "장비를 드래그하고 선으로 연결해 주세요", {
+      .text(
+        WIDTH / 2,
+        102,
+        "우클릭: 정보 · 우클릭 드래그: 연결 또는 이동",
+        {
         color: "#676975",
         fontFamily: "Trebuchet MS",
         fontSize: "13px",
         fontStyle: "bold",
-      })
+        },
+      )
       .setOrigin(0.5)
       .setDepth(21);
   }
@@ -473,15 +560,11 @@ export class ArchitectureScene extends Phaser.Scene {
   private applyArchitecture(playBuildEffect: boolean): void {
     const loadBalancer = this.nodes.get("loadBalancer")!;
     const serverB = this.nodes.get("serverB")!;
-    if (this.architecture.loadBalancerPosition) {
+    for (const [nodeId, node] of this.nodes) {
       const position = this.gridToWorld(
-        this.architecture.loadBalancerPosition,
+        this.architecture.nodePositions[nodeId],
       );
-      loadBalancer.container.setPosition(position.x, position.y);
-    }
-    if (this.architecture.secondServerPosition) {
-      const position = this.gridToWorld(this.architecture.secondServerPosition);
-      serverB.container.setPosition(position.x, position.y);
+      node.container.setPosition(position.x, position.y);
     }
     loadBalancer.container.setVisible(this.architecture.hasLoadBalancer);
     serverB.container.setVisible(this.architecture.serverCount === 2);
@@ -576,7 +659,10 @@ export class ArchitectureScene extends Phaser.Scene {
       return;
     }
     const occupied = this.isOccupied(position);
-    const active = Boolean(this.activeBuildType) && !occupied;
+    const isMoveTarget =
+      this.moveTargetPosition?.column === position.column &&
+      this.moveTargetPosition?.row === position.row;
+    const active = (Boolean(this.activeBuildType) && !occupied) || isMoveTarget;
     cell.rectangle.setFillStyle(
       occupied ? 0xf0eadc : active ? 0xe5f6ec : COLORS.paper,
       occupied ? 0.38 : active ? 0.95 : 0.68,
@@ -952,18 +1038,20 @@ export class ArchitectureScene extends Phaser.Scene {
     return { column, row };
   }
 
-  private isOccupied(position: GridPosition): boolean {
-    const occupied = [
-      FIXED_POSITIONS.entry,
-      FIXED_POSITIONS.serverA,
-      FIXED_POSITIONS.database,
-      this.architecture.loadBalancerPosition,
-      this.architecture.secondServerPosition,
-    ].filter((candidate): candidate is GridPosition => Boolean(candidate));
-    return occupied.some(
-      (candidate) =>
-        candidate.column === position.column && candidate.row === position.row,
-    );
+  private isOccupied(
+    position: GridPosition,
+    exceptNodeId?: ArchitectureNodeId,
+  ): boolean {
+    return ([...this.nodes.keys()] as ArchitectureNodeId[]).some((nodeId) => {
+      if (nodeId === exceptNodeId || !this.isNodeActive(nodeId)) {
+        return false;
+      }
+      const candidate = this.architecture.nodePositions[nodeId];
+      return (
+        candidate.column === position.column &&
+        candidate.row === position.row
+      );
+    });
   }
 
   private getNodePosition(nodeId: ArchitectureNodeId): Phaser.Math.Vector2 {
@@ -1037,11 +1125,14 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private resetWorld(): void {
     this.isWaveRunning = false;
-    this.connectionSource = null;
+    this.nodeGesture = null;
+    this.moveTargetPosition = null;
     this.previewGraphics.clear();
     this.resetTraffic();
     this.applyArchitecture(false);
-    this.statusText.setText("장비를 배치하고 선으로 연결해 주세요");
+    this.statusText.setText(
+      "우클릭: 정보 · 우클릭 드래그: 연결 또는 이동",
+    );
   }
 
   private wait(duration: number): Promise<void> {

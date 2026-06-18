@@ -1,4 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   playWaveCleared,
   playWaveFailed,
@@ -6,9 +13,11 @@ import {
   unlockAudio,
 } from "./audio/audioDirector";
 import { BuildDock } from "./components/BuildDock";
+import { AutoWaveBar } from "./components/AutoWaveBar";
 import { HelpModal } from "./components/HelpModal";
 import { MainMenu } from "./components/MainMenu";
 import { MissionHud } from "./components/MissionHud";
+import { NodeDetails } from "./components/NodeDetails";
 import { ResultModal } from "./components/ResultModal";
 import { GAME_EVENTS, gameEvents } from "./game/bridge/gameEvents";
 import {
@@ -28,8 +37,15 @@ const GameHost = lazy(() =>
   import("./game/GameHost").then((module) => ({ default: module.GameHost })),
 );
 
+const PREP_DURATION_MS = 20_000;
+
 export function App(): React.JSX.Element {
   const [isHelpOpen, setHelpOpen] = useState(false);
+  const [selectedNode, setSelectedNode] =
+    useState<ArchitectureNodeId | null>(null);
+  const [prepRemainingMs, setPrepRemainingMs] =
+    useState(PREP_DURATION_MS);
+  const autoWaveStartedRef = useRef(false);
   const phase = useGameStore((state) => state.phase);
   const waveIndex = useGameStore((state) => state.waveIndex);
   const coins = useGameStore((state) => state.coins);
@@ -38,6 +54,8 @@ export function App(): React.JSX.Element {
   const expansionUnlocked = useGameStore(
     (state) => state.expansionUnlocked,
   );
+  const shopLevel = useGameStore((state) => state.shopLevel);
+  const shopRotation = useGameStore((state) => state.shopRotation);
   const liveMetrics = useGameStore((state) => state.liveMetrics);
   const lastResult = useGameStore((state) => state.lastResult);
   const startMission = useGameStore((state) => state.startMission);
@@ -51,7 +69,10 @@ export function App(): React.JSX.Element {
     (state) => state.continueAfterResult,
   );
   const placeSystem = useGameStore((state) => state.placeSystem);
+  const moveNode = useGameStore((state) => state.moveNode);
   const toggleConnection = useGameStore((state) => state.toggleConnection);
+  const upgradeShop = useGameStore((state) => state.upgradeShop);
+  const rerollShop = useGameStore((state) => state.rerollShop);
   const clearConnections = useGameStore((state) => state.clearConnections);
   const resetCampaign = useGameStore((state) => state.resetCampaign);
   const wave = WAVES[waveIndex];
@@ -85,10 +106,15 @@ export function App(): React.JSX.Element {
   );
 
   const handleStartWave = useCallback(() => {
-    if (phase !== "prepare" || !worldReady) {
+    if (
+      phase !== "prepare" ||
+      !worldReady ||
+      autoWaveStartedRef.current
+    ) {
       return;
     }
 
+    autoWaveStartedRef.current = true;
     const result = simulateTrafficWave(wave, architecture);
     beginWave(result);
     playWaveStart();
@@ -96,11 +122,13 @@ export function App(): React.JSX.Element {
   }, [architecture, beginWave, phase, wave, worldReady]);
 
   const handleContinue = useCallback(() => {
+    setSelectedNode(null);
     continueAfterResult();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [continueAfterResult]);
 
   const handleRestart = useCallback(() => {
+    setSelectedNode(null);
     resetCampaign();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [resetCampaign]);
@@ -125,6 +153,13 @@ export function App(): React.JSX.Element {
       toggleConnection(from, to);
     },
     [toggleConnection],
+  );
+
+  const handleNodeMove = useCallback(
+    (nodeId: ArchitectureNodeId, position: GridPosition) => {
+      moveNode(nodeId, position);
+    },
+    [moveNode],
   );
 
   const handleDropSystem = useCallback(
@@ -153,6 +188,47 @@ export function App(): React.JSX.Element {
     gameEvents.emit(GAME_EVENTS.CONFIGURE_ARCHITECTURE, { architecture });
   }, [architecture, worldReady]);
 
+  useEffect(() => {
+    if (phase !== "prepare") {
+      return;
+    }
+    autoWaveStartedRef.current = false;
+    setPrepRemainingMs(PREP_DURATION_MS);
+  }, [phase, waveIndex]);
+
+  const isTimerPaused = isHelpOpen || selectedNode !== null;
+
+  useEffect(() => {
+    if (
+      phase !== "prepare" ||
+      !worldReady ||
+      isTimerPaused
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setPrepRemainingMs((remaining) => Math.max(0, remaining - 100));
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [isTimerPaused, phase, worldReady]);
+
+  useEffect(() => {
+    if (
+      phase === "prepare" &&
+      worldReady &&
+      !isTimerPaused &&
+      prepRemainingMs === 0
+    ) {
+      handleStartWave();
+    }
+  }, [
+    handleStartWave,
+    isTimerPaused,
+    phase,
+    prepRemainingMs,
+    worldReady,
+  ]);
+
   if (phase === "menu") {
     return <MainMenu onStart={handleStartMission} />;
   }
@@ -162,7 +238,6 @@ export function App(): React.JSX.Element {
       <MissionHud
         waveNumber={wave.id}
         waveTotal={wave.requestCount}
-        coins={coins}
         liveMetrics={liveMetrics}
         isRunning={phase === "running"}
         onHelp={() => setHelpOpen(true)}
@@ -177,6 +252,8 @@ export function App(): React.JSX.Element {
               onWaveComplete={handleWaveComplete}
               onSystemPlacement={handleSystemPlacement}
               onConnectionRequest={handleConnectionRequest}
+              onNodeMove={handleNodeMove}
+              onNodeDetails={setSelectedNode}
             />
           </Suspense>
         </div>
@@ -184,17 +261,35 @@ export function App(): React.JSX.Element {
           architecture={architecture}
           coins={coins}
           expansionUnlocked={expansionUnlocked}
+          shopLevel={shopLevel}
+          shopRotation={shopRotation}
           disabled={phase !== "prepare"}
-          worldReady={worldReady}
           wave={wave}
           onSelectSystem={handleSelectSystem}
           onDropSystem={handleDropSystem}
           onCancelPlacement={handleCancelPlacement}
           onClearConnections={clearConnections}
-          onStartWave={handleStartWave}
+          onUpgradeShop={upgradeShop}
+          onRerollShop={rerollShop}
         />
       </section>
 
+      {(phase === "prepare" || phase === "running") && (
+        <AutoWaveBar
+          phase={phase}
+          remainingMs={prepRemainingMs}
+          totalMs={PREP_DURATION_MS}
+          paused={isTimerPaused}
+        />
+      )}
+
+      {selectedNode && (
+        <NodeDetails
+          nodeId={selectedNode}
+          architecture={architecture}
+          onClose={() => setSelectedNode(null)}
+        />
+      )}
       {isHelpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       {(phase === "result" || phase === "cleared") && lastResult && (
         <ResultModal

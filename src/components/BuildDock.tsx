@@ -5,16 +5,21 @@ import type {
   WaveDefinition,
 } from "../simulation/trafficSimulation";
 import {
+  getShopPrice,
+  getShopUpgradeCost,
   LOAD_BALANCER_COST,
+  MAX_SHOP_LEVEL,
   SECOND_SERVER_COST,
+  SHOP_REROLL_COST,
 } from "../store/gameStore";
 
 interface BuildDockProps {
   architecture: ArchitectureConfig;
   coins: number;
   expansionUnlocked: boolean;
+  shopLevel: number;
+  shopRotation: number;
   disabled: boolean;
-  worldReady: boolean;
   wave: WaveDefinition;
   onSelectSystem: (systemType: BuildSystemType) => void;
   onDropSystem: (
@@ -24,14 +29,16 @@ interface BuildDockProps {
   ) => void;
   onCancelPlacement: () => void;
   onClearConnections: () => void;
-  onStartWave: () => void;
+  onUpgradeShop: () => void;
+  onRerollShop: () => void;
 }
 
 interface BuildCardProps {
   systemType: BuildSystemType;
   name: string;
-  cloudName: string;
+  category: string;
   description: string;
+  baseCost: number;
   cost: number;
   installed: boolean;
   locked: boolean;
@@ -71,12 +78,12 @@ function CloudServiceIcon({
     </svg>
   );
 }
-
 function BuildCard({
   systemType,
   name,
-  cloudName,
+  category,
   description,
+  baseCost,
   cost,
   installed,
   locked,
@@ -91,16 +98,11 @@ function BuildCard({
   const suppressClickRef = useRef(false);
   const unavailable =
     interactionDisabled || installed || locked || !affordable;
-  const label = installed
-    ? "ONLINE"
-    : locked
-      ? "LOCKED"
-      : `◈ ${cost} · DRAG TO GRID`;
 
   const handlePointerDown = (
     event: React.PointerEvent<HTMLButtonElement>,
   ): void => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || unavailable) {
       return;
     }
     dragStartRef.current = { x: event.clientX, y: event.clientY };
@@ -147,6 +149,8 @@ function BuildCard({
     onSelectSystem(systemType);
   };
 
+  const hasDiscount = cost < baseCost;
+
   return (
     <button
       type="button"
@@ -155,17 +159,28 @@ function BuildCard({
       onPointerDown={handlePointerDown}
       onPointerCancel={onCancelPlacement}
       disabled={unavailable}
-      title={installed ? `${name} 설치 완료` : `${name}을 빈 격자 칸에 배치`}
+      title={installed ? `${name} 설치 완료` : `${name} 구매 후 배치`}
     >
       <span className="build-icon">
         <CloudServiceIcon systemType={systemType} />
       </span>
-      <span>
+      <span className="build-copy">
+        <small>{category}</small>
         <strong>{name}</strong>
-        <small>{cloudName}</small>
-        <small>{description}</small>
+        <span>{description}</span>
       </span>
-      <em>{label}</em>
+      <span className="build-price">
+        {installed ? (
+          <strong>ONLINE</strong>
+        ) : locked ? (
+          <strong>LOCKED</strong>
+        ) : (
+          <>
+            {hasDiscount && <del>◈ {baseCost}</del>}
+            <strong>◈ {cost}</strong>
+          </>
+        )}
+      </span>
     </button>
   );
 }
@@ -174,32 +189,77 @@ export function BuildDock({
   architecture,
   coins,
   expansionUnlocked,
+  shopLevel,
+  shopRotation,
   disabled,
-  worldReady,
   wave,
   onSelectSystem,
   onDropSystem,
   onCancelPlacement,
   onClearConnections,
-  onStartWave,
+  onUpgradeShop,
+  onRerollShop,
 }: BuildDockProps): React.JSX.Element {
+  const loadBalancerPrice = getShopPrice(
+    LOAD_BALANCER_COST,
+    shopLevel,
+    shopRotation,
+    "loadBalancer",
+  );
+  const serverPrice = getShopPrice(
+    SECOND_SERVER_COST,
+    shopLevel,
+    shopRotation,
+    "logicServer",
+  );
+  const upgradeCost = getShopUpgradeCost(shopLevel);
+
   return (
-    <aside className="build-dock" aria-label="아키텍처 구성">
-      <div className="wave-brief">
-        <span>{disabled ? "DEFENSE ACTIVE" : "BUILD PHASE"}</span>
-        <strong>{wave.name}</strong>
-        <small>
-          {expansionUnlocked && !disabled
-            ? "장비는 격자에 놓고, 장비끼리 드래그해 길을 그리세요."
-            : "장비끼리 드래그해 트래픽 길을 연결하세요."}
-        </small>
+    <aside className="build-dock" aria-label="장비 상점">
+      <header className="shop-header">
+        <div>
+          <span>ARCHITECT SHOP</span>
+          <strong>장비 상점</strong>
+        </div>
+        <div className="shop-wallet" aria-label={`보유 재화 ${coins}`}>
+          <small>CREDITS</small>
+          <strong>◈ {coins}</strong>
+        </div>
+      </header>
+
+      <section className="shop-level">
+        <div>
+          <span>SHOP LEVEL</span>
+          <strong>
+            LV.{shopLevel} <small>/ {MAX_SHOP_LEVEL}</small>
+          </strong>
+        </div>
         <button
           type="button"
-          className="route-reset-button"
-          onClick={onClearConnections}
-          disabled={disabled || architecture.connections.length === 0}
+          onClick={onUpgradeShop}
+          disabled={
+            disabled || upgradeCost === null || coins < upgradeCost
+          }
         >
-          그린 길 지우기
+          {upgradeCost === null ? "MAX LEVEL" : `레벨 업 ◈ ${upgradeCost}`}
+        </button>
+      </section>
+
+      <div className="shop-toolbar">
+        <div>
+          <span>{disabled ? "WAVE ACTIVE" : "CURRENT WAVE"}</span>
+          <strong>{wave.name}</strong>
+        </div>
+        <button
+          type="button"
+          onClick={onRerollShop}
+          disabled={
+            disabled ||
+            !expansionUnlocked ||
+            coins < SHOP_REROLL_COST
+          }
+        >
+          ↻ 리롤 {SHOP_REROLL_COST}
         </button>
       </div>
 
@@ -207,12 +267,13 @@ export function BuildDock({
         <BuildCard
           systemType="loadBalancer"
           name="로드밸런서"
-          cloudName="트래픽 나누기"
-          description="요청을 여러 서버로 분산"
-          cost={LOAD_BALANCER_COST}
+          category="TRAFFIC ROUTING"
+          description="요청을 두 서버로 나누는 분산 장비"
+          baseCost={LOAD_BALANCER_COST}
+          cost={loadBalancerPrice}
           installed={architecture.hasLoadBalancer}
           locked={!expansionUnlocked}
-          affordable={coins >= LOAD_BALANCER_COST}
+          affordable={coins >= loadBalancerPrice}
           interactionDisabled={disabled}
           onSelectSystem={onSelectSystem}
           onDropSystem={onDropSystem}
@@ -220,13 +281,14 @@ export function BuildDock({
         />
         <BuildCard
           systemType="logicServer"
-          name="앱 서버"
-          cloudName="요청 처리"
-          description="처리 슬롯과 Queue 추가"
-          cost={SECOND_SERVER_COST}
+          name="앱 서버 B"
+          category="COMPUTE"
+          description="동시 처리 슬롯과 Queue를 추가"
+          baseCost={SECOND_SERVER_COST}
+          cost={serverPrice}
           installed={architecture.serverCount === 2}
           locked={!expansionUnlocked}
-          affordable={coins >= SECOND_SERVER_COST}
+          affordable={coins >= serverPrice}
           interactionDisabled={disabled}
           onSelectSystem={onSelectSystem}
           onDropSystem={onDropSystem}
@@ -234,15 +296,19 @@ export function BuildDock({
         />
       </div>
 
-      <button
-        type="button"
-        className="wave-button"
-        onClick={onStartWave}
-        disabled={disabled || !worldReady}
-      >
-        <span>{disabled ? "DEFENDING" : worldReady ? "START WAVE" : "LOADING"}</span>
-        <strong>{disabled ? "처리 중..." : worldReady ? "웨이브 출격" : "보드 준비 중"}</strong>
-      </button>
+      <footer className="shop-footer">
+        <p>
+          장비는 카드 클릭 후 격자 선택 또는 보드로 드래그해 구매·배치합니다.
+        </p>
+        <button
+          type="button"
+          className="route-reset-button"
+          onClick={onClearConnections}
+          disabled={disabled || architecture.connections.length === 0}
+        >
+          모든 간선 지우기
+        </button>
+      </footer>
     </aside>
   );
 }

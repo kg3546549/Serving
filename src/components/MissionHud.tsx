@@ -3,7 +3,6 @@ import type { LiveWaveMetrics } from "../store/gameStore";
 interface MissionHudProps {
   waveNumber: number;
   waveTotal: number;
-  coins: number;
   liveMetrics: LiveWaveMetrics;
   isRunning: boolean;
   onHelp: () => void;
@@ -12,7 +11,6 @@ interface MissionHudProps {
 export function MissionHud({
   waveNumber,
   waveTotal,
-  coins,
   liveMetrics,
   isRunning,
   onHelp,
@@ -44,10 +42,6 @@ export function MissionHud({
           <strong>
             {isRunning ? `${liveMetrics.completed} / ${waveTotal}` : waveTotal}
           </strong>
-        </span>
-        <span className="mini-resource coins" title="설치 코인">
-          <small>CREDITS</small>
-          <strong>◈ {coins}</strong>
         </span>
         <button
           type="button"

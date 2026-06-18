@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_NODE_POSITIONS,
   simulateTrafficWave,
   WAVES,
   type ArchitectureConfig,
@@ -8,6 +9,7 @@ import {
 const singleServer: ArchitectureConfig = {
   serverCount: 1,
   hasLoadBalancer: false,
+  nodePositions: DEFAULT_NODE_POSITIONS,
   connections: [
     { from: "entry", to: "serverA" },
     { from: "serverA", to: "database" },
@@ -36,6 +38,7 @@ describe("simulateTrafficWave", () => {
     const result = simulateTrafficWave(WAVES[1], {
       serverCount: 2,
       hasLoadBalancer: true,
+      nodePositions: DEFAULT_NODE_POSITIONS,
       connections: [
         { from: "entry", to: "loadBalancer" },
         { from: "loadBalancer", to: "serverA" },
@@ -55,6 +58,7 @@ describe("simulateTrafficWave", () => {
     const result = simulateTrafficWave(WAVES[1], {
       serverCount: 2,
       hasLoadBalancer: false,
+      nodePositions: DEFAULT_NODE_POSITIONS,
       connections: [
         { from: "entry", to: "serverA" },
         { from: "serverA", to: "database" },
@@ -70,6 +74,7 @@ describe("simulateTrafficWave", () => {
     const result = simulateTrafficWave(WAVES[0], {
       serverCount: 1,
       hasLoadBalancer: false,
+      nodePositions: DEFAULT_NODE_POSITIONS,
       connections: [],
     });
 
