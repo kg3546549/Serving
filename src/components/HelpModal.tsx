@@ -33,7 +33,7 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <div>
             <span className="reaction-icon open">＋</span>
             <strong>구매·배치</strong>
-            <p>상점에서 구매한 장비를 보유 목록에서 드래그합니다.</p>
+            <p>상점에서 구매한 장비를 하단 보유 장비 바에서 드래그합니다.</p>
           </div>
           <div>
             <span className="reaction-icon blocked">≋</span>

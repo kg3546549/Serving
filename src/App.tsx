@@ -16,6 +16,7 @@ import { ACTIVE_STAGE, STAGE_ONE_WAVES } from "./campaign/campaignData";
 import { BuildDock } from "./components/BuildDock";
 import { AutoWaveBar } from "./components/AutoWaveBar";
 import { HelpModal } from "./components/HelpModal";
+import { InventoryDock } from "./components/InventoryDock";
 import { MainMenu } from "./components/MainMenu";
 import { MissionHud } from "./components/MissionHud";
 import { NodeDetails } from "./components/NodeDetails";
@@ -270,9 +271,6 @@ export function App(): React.JSX.Element {
           disabled={phase !== "prepare"}
           waveIndex={waveIndex}
           wave={wave}
-          onSelectNode={handleSelectNode}
-          onDropNode={handleDropNode}
-          onCancelPlacement={handleCancelPlacement}
           onPurchaseSystem={purchaseSystem}
           onUpgradeLinks={upgradeLinks}
           onClearConnections={clearConnections}
@@ -280,12 +278,22 @@ export function App(): React.JSX.Element {
       </section>
 
       {(phase === "prepare" || phase === "running") && (
-        <AutoWaveBar
-          phase={phase}
-          remainingMs={prepRemainingMs}
-          totalMs={prepDurationMs}
-          paused={isTimerPaused}
-        />
+        <section className="bottom-operations" aria-label="운영 준비">
+          <AutoWaveBar
+            phase={phase}
+            remainingMs={prepRemainingMs}
+            totalMs={prepDurationMs}
+            paused={isTimerPaused}
+          />
+          <InventoryDock
+            architecture={architecture}
+            ownedNodes={ownedNodes}
+            disabled={phase !== "prepare"}
+            onSelectNode={handleSelectNode}
+            onDropNode={handleDropNode}
+            onCancelPlacement={handleCancelPlacement}
+          />
+        </section>
       )}
 
       {selectedNode && (
