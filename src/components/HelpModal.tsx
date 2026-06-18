@@ -37,8 +37,8 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           </div>
           <div>
             <span className="reaction-icon blocked">≋</span>
-            <strong>간선 연결</strong>
-            <p>우클릭 또는 Shift+좌클릭 드래그로 장비를 연결합니다.</p>
+            <strong>포트 제한</strong>
+            <p>App은 트래픽 1개, LB는 트래픽 3개를 연결합니다.</p>
           </div>
           <div>
             <span className="reaction-icon closed">!</span>
@@ -53,6 +53,15 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
             Wave 1은 입구 → App Server A → Primary DB를 연결합니다.
             Wave 5부터는 입구 → Load Balancer → 서버 A/B → DB의 분산
             경로를 만들 수 있습니다. 입구 위치는 이동할 수 없습니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
+          <summary>간선 길이와 LINK LEVEL</summary>
+          <p>
+            간선 길이는 두 장비 사이의 가로·세로 칸 수로 계산합니다.
+            LINK LEVEL은 간선 하나의 최대 길이와 전체 사용 가능한 칸 수를
+            늘립니다. 긴 경로나 분산 구조를 만들기 전에 확장해야 합니다.
           </p>
         </details>
 

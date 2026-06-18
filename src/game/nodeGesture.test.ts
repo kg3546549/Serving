@@ -9,7 +9,7 @@ describe("resolveNodeGesture", () => {
         dragged: false,
         source: "entry",
         target: null,
-        position: { column: 0, row: 1 },
+        position: { column: 0, row: 2 },
         positionOccupied: false,
       }),
     ).toEqual({ type: "details", nodeId: "entry" });

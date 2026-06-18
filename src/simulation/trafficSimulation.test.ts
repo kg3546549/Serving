@@ -11,6 +11,7 @@ const directArchitecture: ArchitectureConfig = {
   hasLoadBalancer: false,
   hasDatabase: true,
   databaseIndexed: false,
+  linkLevel: 1,
   nodePositions: {
     entry: DEFAULT_NODE_POSITIONS.entry,
     serverA: DEFAULT_NODE_POSITIONS.serverA,
@@ -27,6 +28,7 @@ const scaledArchitecture: ArchitectureConfig = {
   hasLoadBalancer: true,
   hasDatabase: true,
   databaseIndexed: true,
+  linkLevel: 2,
   nodePositions: { ...DEFAULT_NODE_POSITIONS },
   connections: [
     { from: "entry", to: "loadBalancer" },

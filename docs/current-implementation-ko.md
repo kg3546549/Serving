@@ -65,10 +65,36 @@ Stage 1의 전송 프로토콜은 HTTPS로 고정된다. MQTT, WebSocket, HLS, R
 
 서버를 증설하면 DB 유입량이 증가하므로, 후반에는 서버가 아니라 DB가 병목으로 표시된다.
 
+## 포트와 간선 제약
+
+| 장비 | 트래픽 포트 | 데이터 포트 |
+|---|---:|---:|
+| Traffic Ingress | 1 | 0 |
+| App Server A/B | 1 | 1 |
+| Load Balancer | 3 | 0 |
+| Primary DB | 0 | 2 |
+
+App Server는 외부 트래픽 간선을 하나만 받을 수 있다. DB 연결은 별도의 데이터 포트로 계산한다. Load Balancer만 입구 1개와 서버 분기 2개를 포함한 트래픽 간선 3개를 지원한다.
+
+허용 연결은 다음으로 제한한다.
+
+- Ingress ↔ App Server A
+- Ingress ↔ Load Balancer
+- Load Balancer ↔ App Server A/B
+- App Server A/B ↔ Primary DB
+
+간선 길이는 Manhattan 거리로 계산한다. `LINK LEVEL`은 간선 하나의 최대 길이와 전체 간선 칸 예산을 확장한다.
+
+| Level | 간선 최대 길이 | 전체 예산 | 다음 레벨 비용 |
+|---:|---:|---:|---:|
+| 1 | 4칸 | 8칸 | 60 |
+| 2 | 6칸 | 22칸 | 100 |
+| 3 | 9칸 | 36칸 | 없음 |
+
 ## 화면 구현
 
 - React: 메뉴, HUD, 상점, 도움말, 결과
-- Phaser: 9×4 격자, 장비, 간선, 요청 이동, Queue 압력
+- Phaser: 13×6 고밀도 격자, 장비, 직교 간선, 요청 이동, Queue 압력
 - Zustand: 구매, 배치, 연결, 코인, HP, 웨이브 진행
 - 순수 TypeScript: Tick 기반 서버·DB·응답 시뮬레이션
 

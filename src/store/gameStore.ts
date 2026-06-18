@@ -9,7 +9,10 @@ import type {
 } from "../simulation/trafficSimulation";
 import {
   FIXED_ENTRY_POSITION,
+  getLinkTier,
   SYSTEM_CATALOG,
+  validateArchitectureConnections,
+  validateNewConnection,
 } from "../simulation/trafficSimulation";
 
 export type GamePhase =
@@ -50,6 +53,7 @@ interface GameState {
     from: ArchitectureNodeId,
     to: ArchitectureNodeId,
   ) => void;
+  upgradeLinks: () => void;
   clearConnections: () => void;
   resetCampaign: () => void;
 }
@@ -59,6 +63,7 @@ const createInitialArchitecture = (): ArchitectureConfig => ({
   hasLoadBalancer: false,
   hasDatabase: false,
   databaseIndexed: false,
+  linkLevel: 1,
   nodePositions: {
     entry: { ...FIXED_ENTRY_POSITION },
   },
@@ -230,15 +235,17 @@ export const useGameStore = create<GameState>((set) => ({
       ) {
         return state;
       }
-      return {
-        architecture: {
-          ...state.architecture,
-          nodePositions: {
-            ...state.architecture.nodePositions,
-            [nodeId]: position,
-          },
+      const architecture: ArchitectureConfig = {
+        ...state.architecture,
+        nodePositions: {
+          ...state.architecture.nodePositions,
+          [nodeId]: position,
         },
       };
+      if (!validateArchitectureConnections(architecture).valid) {
+        return state;
+      }
+      return { architecture };
     }),
 
   toggleConnection: (from, to) =>
@@ -256,6 +263,16 @@ export const useGameStore = create<GameState>((set) => ({
           (connection.from === from && connection.to === to) ||
           (connection.from === to && connection.to === from),
       );
+      if (!exists) {
+        const validation = validateNewConnection(
+          state.architecture,
+          from,
+          to,
+        );
+        if (!validation.valid) {
+          return state;
+        }
+      }
       return {
         architecture: {
           ...state.architecture,
@@ -268,6 +285,28 @@ export const useGameStore = create<GameState>((set) => ({
                   ),
               )
             : [...state.architecture.connections, { from, to }],
+        },
+      };
+    }),
+
+  upgradeLinks: () =>
+    set((state) => {
+      if (state.phase !== "prepare") {
+        return state;
+      }
+      const tier = getLinkTier(state.architecture.linkLevel);
+      if (
+        tier.upgradeCost === null ||
+        state.coins < tier.upgradeCost ||
+        state.architecture.linkLevel >= 3
+      ) {
+        return state;
+      }
+      return {
+        coins: state.coins - tier.upgradeCost,
+        architecture: {
+          ...state.architecture,
+          linkLevel: (state.architecture.linkLevel + 1) as 2 | 3,
         },
       };
     }),

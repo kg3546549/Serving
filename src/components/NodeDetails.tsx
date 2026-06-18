@@ -2,6 +2,10 @@ import type {
   ArchitectureConfig,
   ArchitectureNodeId,
 } from "../simulation/trafficSimulation";
+import {
+  getNodePortUsage,
+  NODE_PORT_LIMITS,
+} from "../simulation/trafficSimulation";
 
 interface NodeDetailsProps {
   nodeId: ArchitectureNodeId;
@@ -55,6 +59,8 @@ export function NodeDetails({
   const links = architecture.connections.filter(
     (connection) => connection.from === nodeId || connection.to === nodeId,
   ).length;
+  const portUsage = getNodePortUsage(architecture, nodeId);
+  const portLimits = NODE_PORT_LIMITS[nodeId];
 
   return (
     <aside
@@ -83,10 +89,22 @@ export function NodeDetails({
         </span>
         <span>
           <small>LINKS</small>
-          <strong>{links}</strong>
+          <strong>
+            {links} / {portLimits.traffic + portLimits.data}
+          </strong>
         </span>
       </div>
       <ul>
+        {portLimits.traffic > 0 && (
+          <li>
+            트래픽 포트 {portUsage.traffic}/{portLimits.traffic}
+          </li>
+        )}
+        {portLimits.data > 0 && (
+          <li>
+            데이터 포트 {portUsage.data}/{portLimits.data}
+          </li>
+        )}
         {copy.stats.map((stat) => (
           <li key={stat}>{stat}</li>
         ))}

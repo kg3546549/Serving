@@ -27,18 +27,35 @@ export interface ArchitectureConnection {
   to: ArchitectureNodeId;
 }
 
+export type LinkLevel = 1 | 2 | 3;
+export type ConnectionKind = "traffic" | "data";
+
+export interface LinkTier {
+  level: LinkLevel;
+  maxEdgeCells: number;
+  totalCells: number;
+  upgradeCost: number | null;
+}
+
+export interface ConnectionValidation {
+  valid: boolean;
+  reason: string;
+  kind?: ConnectionKind;
+  length?: number;
+}
+
 export type ArchitectureNodePositions = Partial<
   Record<ArchitectureNodeId, GridPosition>
 >;
 
-export const FIXED_ENTRY_POSITION: GridPosition = { column: 0, row: 1 };
+export const FIXED_ENTRY_POSITION: GridPosition = { column: 0, row: 2 };
 
 export const DEFAULT_NODE_POSITIONS: ArchitectureNodePositions = {
   entry: FIXED_ENTRY_POSITION,
-  loadBalancer: { column: 2, row: 1 },
-  serverA: { column: 5, row: 0 },
-  serverB: { column: 5, row: 2 },
-  database: { column: 8, row: 1 },
+  loadBalancer: { column: 2, row: 2 },
+  serverA: { column: 4, row: 2 },
+  serverB: { column: 4, row: 4 },
+  database: { column: 8, row: 2 },
 };
 
 export interface ArchitectureConfig {
@@ -46,8 +63,194 @@ export interface ArchitectureConfig {
   hasLoadBalancer: boolean;
   hasDatabase: boolean;
   databaseIndexed: boolean;
+  linkLevel: LinkLevel;
   nodePositions: ArchitectureNodePositions;
   connections: ArchitectureConnection[];
+}
+
+export const LINK_TIERS: readonly LinkTier[] = [
+  { level: 1, maxEdgeCells: 4, totalCells: 8, upgradeCost: 60 },
+  { level: 2, maxEdgeCells: 6, totalCells: 22, upgradeCost: 100 },
+  { level: 3, maxEdgeCells: 9, totalCells: 36, upgradeCost: null },
+] as const;
+
+export const NODE_PORT_LIMITS: Readonly<
+  Record<ArchitectureNodeId, Record<ConnectionKind, number>>
+> = {
+  entry: { traffic: 1, data: 0 },
+  loadBalancer: { traffic: 3, data: 0 },
+  serverA: { traffic: 1, data: 1 },
+  serverB: { traffic: 1, data: 1 },
+  database: { traffic: 0, data: 2 },
+} as const;
+
+export function getLinkTier(level: LinkLevel): LinkTier {
+  return LINK_TIERS[level - 1] ?? LINK_TIERS[0];
+}
+
+export function getConnectionLength(
+  architecture: ArchitectureConfig,
+  connection: ArchitectureConnection,
+): number {
+  const from = architecture.nodePositions[connection.from];
+  const to = architecture.nodePositions[connection.to];
+  if (!from || !to) {
+    return 0;
+  }
+  return (
+    Math.abs(from.column - to.column) +
+    Math.abs(from.row - to.row)
+  );
+}
+
+export function getTotalConnectionCells(
+  architecture: ArchitectureConfig,
+): number {
+  return architecture.connections.reduce(
+    (total, connection) =>
+      total + getConnectionLength(architecture, connection),
+    0,
+  );
+}
+
+function isServer(nodeId: ArchitectureNodeId): boolean {
+  return nodeId === "serverA" || nodeId === "serverB";
+}
+
+export function getConnectionKind(
+  left: ArchitectureNodeId,
+  right: ArchitectureNodeId,
+): ConnectionKind | null {
+  if (
+    (isServer(left) && right === "database") ||
+    (left === "database" && isServer(right))
+  ) {
+    return "data";
+  }
+  if (
+    (left === "entry" &&
+      (right === "loadBalancer" || right === "serverA")) ||
+    (right === "entry" &&
+      (left === "loadBalancer" || left === "serverA")) ||
+    (left === "loadBalancer" && isServer(right)) ||
+    (right === "loadBalancer" && isServer(left))
+  ) {
+    return "traffic";
+  }
+  return null;
+}
+
+export function getNodePortUsage(
+  architecture: ArchitectureConfig,
+  nodeId: ArchitectureNodeId,
+): Record<ConnectionKind, number> {
+  return architecture.connections.reduce(
+    (usage, connection) => {
+      if (connection.from !== nodeId && connection.to !== nodeId) {
+        return usage;
+      }
+      const kind = getConnectionKind(connection.from, connection.to);
+      if (kind) {
+        usage[kind] += 1;
+      }
+      return usage;
+    },
+    { traffic: 0, data: 0 },
+  );
+}
+
+function validatePortUsage(
+  architecture: ArchitectureConfig,
+): ConnectionValidation {
+  for (const nodeId of Object.keys(NODE_PORT_LIMITS) as ArchitectureNodeId[]) {
+    const usage = getNodePortUsage(architecture, nodeId);
+    for (const kind of ["traffic", "data"] as const) {
+      const limit = NODE_PORT_LIMITS[nodeId][kind];
+      if (usage[kind] > limit) {
+        const label = kind === "traffic" ? "트래픽" : "데이터";
+        return {
+          valid: false,
+          reason: `${nodeId}의 ${label} 포트는 ${limit}개까지만 연결할 수 있습니다.`,
+          kind,
+        };
+      }
+    }
+  }
+  return { valid: true, reason: "연결 가능" };
+}
+
+export function validateArchitectureConnections(
+  architecture: ArchitectureConfig,
+): ConnectionValidation {
+  const tier = getLinkTier(architecture.linkLevel);
+  for (const connection of architecture.connections) {
+    const kind = getConnectionKind(connection.from, connection.to);
+    if (!kind) {
+      return {
+        valid: false,
+        reason: "이 장비 조합은 직접 연결할 수 없습니다.",
+      };
+    }
+    if (
+      !architecture.nodePositions[connection.from] ||
+      !architecture.nodePositions[connection.to]
+    ) {
+      return {
+        valid: false,
+        reason: "배치되지 않은 장비는 연결할 수 없습니다.",
+      };
+    }
+    const length = getConnectionLength(architecture, connection);
+    if (length > tier.maxEdgeCells) {
+      return {
+        valid: false,
+        reason: `LINK LV.${tier.level}의 간선 하나는 최대 ${tier.maxEdgeCells}칸입니다.`,
+        kind,
+        length,
+      };
+    }
+  }
+  const totalCells = getTotalConnectionCells(architecture);
+  if (totalCells > tier.totalCells) {
+    return {
+      valid: false,
+      reason: `LINK LV.${tier.level}의 전체 간선 예산은 ${tier.totalCells}칸입니다.`,
+    };
+  }
+  return validatePortUsage(architecture);
+}
+
+export function validateNewConnection(
+  architecture: ArchitectureConfig,
+  from: ArchitectureNodeId,
+  to: ArchitectureNodeId,
+): ConnectionValidation {
+  if (from === to) {
+    return { valid: false, reason: "같은 장비끼리는 연결할 수 없습니다." };
+  }
+  if (!architecture.nodePositions[from] || !architecture.nodePositions[to]) {
+    return {
+      valid: false,
+      reason: "배치되지 않은 장비는 연결할 수 없습니다.",
+    };
+  }
+  const kind = getConnectionKind(from, to);
+  if (!kind) {
+    return {
+      valid: false,
+      reason: "허용되지 않은 연결입니다. 트래픽 경로와 DB 경로를 확인하세요.",
+    };
+  }
+  const candidate: ArchitectureConfig = {
+    ...architecture,
+    connections: [...architecture.connections, { from, to }],
+  };
+  const validation = validateArchitectureConnections(candidate);
+  return {
+    ...validation,
+    kind,
+    length: getConnectionLength(candidate, { from, to }),
+  };
 }
 
 export function isArchitectureNodePlaced(

@@ -8,8 +8,15 @@ import type {
 } from "../simulation/trafficSimulation";
 import {
   DEFAULT_NODE_POSITIONS,
+  getConnectionKind,
+  getConnectionLength,
+  getLinkTier,
+  getTotalConnectionCells,
   hasBalancedRoute,
+  hasDirectConnection,
   isArchitectureNodePlaced,
+  validateArchitectureConnections,
+  validateNewConnection,
 } from "../simulation/trafficSimulation";
 import type { LiveWaveMetrics } from "../store/gameStore";
 import {
@@ -48,12 +55,12 @@ const WIDTH = 1200;
 const HEIGHT = 720;
 const PLAYBACK_SCALE = 1;
 const GRID = {
-  columns: 9,
-  rows: 4,
-  left: 120,
-  top: 160,
-  cellWidth: 110,
-  cellHeight: 100,
+  columns: 13,
+  rows: 6,
+  left: 45,
+  top: 150,
+  cellWidth: 72,
+  cellHeight: 70,
 };
 const COLORS = {
   cream: 0xfff8e8,
@@ -82,6 +89,7 @@ export class ArchitectureScene extends Phaser.Scene {
     hasLoadBalancer: false,
     hasDatabase: false,
     databaseIndexed: false,
+    linkLevel: 1,
     nodePositions: {
       entry: { ...DEFAULT_NODE_POSITIONS.entry! },
     },
@@ -210,8 +218,8 @@ export class ArchitectureScene extends Phaser.Scene {
           .rectangle(
             center.x,
             center.y,
-            GRID.cellWidth - 12,
-            GRID.cellHeight - 12,
+            GRID.cellWidth - 8,
+            GRID.cellHeight - 8,
             COLORS.paper,
             0.68,
           )
@@ -498,12 +506,22 @@ export class ArchitectureScene extends Phaser.Scene {
       const source = this.getNodePosition(this.nodeGesture.nodeId);
       this.previewGraphics.clear();
       if (this.nodeGesture.mode === "connect") {
-        this.previewGraphics.lineStyle(7, COLORS.blue, 0.82);
-        this.previewGraphics.lineBetween(
-          source.x,
-          source.y,
-          pointer.worldX,
-          pointer.worldY,
+        const sourceGrid =
+          this.architecture.nodePositions[this.nodeGesture.nodeId];
+        const pointerGrid = this.worldToGrid(pointer.worldX, pointer.worldY);
+        const tier = getLinkTier(this.architecture.linkLevel);
+        const previewLength =
+          sourceGrid && pointerGrid
+            ? Math.abs(sourceGrid.column - pointerGrid.column) +
+              Math.abs(sourceGrid.row - pointerGrid.row)
+            : tier.maxEdgeCells + 1;
+        const previewColor =
+          previewLength <= tier.maxEdgeCells ? COLORS.blue : COLORS.red;
+        this.previewGraphics.lineStyle(7, previewColor, 0.82);
+        this.drawOrthogonalLine(
+          this.previewGraphics,
+          source,
+          new Phaser.Math.Vector2(pointer.worldX, pointer.worldY),
         );
       } else {
         this.nodes
@@ -569,19 +587,55 @@ export class ArchitectureScene extends Phaser.Scene {
         });
         this.statusText.setText("장비 상세정보를 열었습니다");
       } else if (resolution.type === "connect") {
-        gameEvents.emit(GAME_EVENTS.CONNECTION_REQUEST, {
-          from: resolution.from,
-          to: resolution.to,
-        });
-        this.statusText.setText(
-          "경로를 연결했어요! 같은 선을 다시 그리면 제거됩니다",
+        const exists = hasDirectConnection(
+          this.architecture,
+          resolution.from,
+          resolution.to,
         );
+        const validation = exists
+          ? { valid: true, reason: "간선을 제거했습니다." }
+          : validateNewConnection(
+              this.architecture,
+              resolution.from,
+              resolution.to,
+            );
+        if (validation.valid) {
+          gameEvents.emit(GAME_EVENTS.CONNECTION_REQUEST, {
+            from: resolution.from,
+            to: resolution.to,
+          });
+          this.statusText.setText(
+            exists
+              ? "간선을 제거했습니다"
+              : `${validation.kind === "data" ? "DATA" : "TRAFFIC"} ${validation.length}칸 연결 완료`,
+          );
+        } else {
+          this.statusText.setText(validation.reason);
+          this.cameras.main.shake(120, 0.0025);
+        }
       } else if (resolution.type === "move") {
-        gameEvents.emit(GAME_EVENTS.NODE_MOVE_REQUEST, {
-          nodeId: resolution.nodeId,
-          position: resolution.position,
-        });
-        this.statusText.setText("장비 위치를 옮겼습니다");
+        const architecture: ArchitectureConfig = {
+          ...this.architecture,
+          nodePositions: {
+            ...this.architecture.nodePositions,
+            [resolution.nodeId]: resolution.position,
+          },
+        };
+        const validation = validateArchitectureConnections(architecture);
+        if (validation.valid) {
+          gameEvents.emit(GAME_EVENTS.NODE_MOVE_REQUEST, {
+            nodeId: resolution.nodeId,
+            position: resolution.position,
+          });
+          this.statusText.setText("장비 위치를 옮겼습니다");
+        } else {
+          const origin = gesture.origin;
+          this.nodes
+            .get(source)
+            ?.container.setPosition(origin.x, origin.y);
+          this.statusText.setText(validation.reason);
+          this.cameras.main.shake(120, 0.0025);
+        }
       } else {
         const origin = gesture.origin;
         this.nodes
@@ -603,7 +657,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(
         WIDTH / 2,
         102,
-        "좌클릭: 정보 · 좌클릭 드래그: 이동 · 우클릭 드래그: 연결",
+        "포트 제한 · 간선 길이 · 전체 케이블 예산을 확인하세요",
         {
         color: "#676975",
         fontFamily: "Trebuchet MS",
@@ -626,6 +680,7 @@ export class ArchitectureScene extends Phaser.Scene {
     }
     this.drawConnections();
     this.refreshGrid();
+    this.showLinkBudget();
     if (playBuildEffect) {
       const target = [...this.nodes.values()].find(
         (node) => node.container.visible && node.container.scaleX === 1,
@@ -647,19 +702,64 @@ export class ArchitectureScene extends Phaser.Scene {
       }
       const from = this.getNodePosition(connection.from);
       const to = this.getNodePosition(connection.to);
+      const kind = getConnectionKind(connection.from, connection.to);
+      const pathColor = kind === "data" ? COLORS.purple : COLORS.mint;
       this.pathGraphics.lineStyle(13, COLORS.path, 0.62);
-      this.pathGraphics.lineBetween(from.x, from.y, to.x, to.y);
-      this.pathGraphics.lineStyle(6, COLORS.mint, 0.9);
-      this.pathGraphics.lineBetween(from.x, from.y, to.x, to.y);
+      this.drawOrthogonalLine(this.pathGraphics, from, to);
+      this.pathGraphics.lineStyle(6, pathColor, 0.9);
+      this.drawOrthogonalLine(this.pathGraphics, from, to);
       this.pathGraphics.fillStyle(0xffffff, 0.75);
-      for (let step = 0.22; step < 1; step += 0.22) {
+      const length = getConnectionLength(this.architecture, connection);
+      for (let step = 1; step < length; step += 1) {
+        const ratio = step / length;
+        const point = this.getOrthogonalPoint(from, to, ratio);
         this.pathGraphics.fillCircle(
-          Phaser.Math.Linear(from.x, to.x, step),
-          Phaser.Math.Linear(from.y, to.y, step),
+          point.x,
+          point.y,
           2.5,
         );
       }
     }
+  }
+
+  private showLinkBudget(): void {
+    const tier = getLinkTier(this.architecture.linkLevel);
+    this.statusText.setText(
+      `LINK LV.${tier.level} · 간선 ${getTotalConnectionCells(this.architecture)}/${tier.totalCells}칸 · 1개 최대 ${tier.maxEdgeCells}칸`,
+    );
+  }
+
+  private drawOrthogonalLine(
+    graphics: Phaser.GameObjects.Graphics,
+    from: Phaser.Math.Vector2,
+    to: Phaser.Math.Vector2,
+  ): void {
+    const corner = new Phaser.Math.Vector2(to.x, from.y);
+    graphics.lineBetween(from.x, from.y, corner.x, corner.y);
+    graphics.lineBetween(corner.x, corner.y, to.x, to.y);
+  }
+
+  private getOrthogonalPoint(
+    from: Phaser.Math.Vector2,
+    to: Phaser.Math.Vector2,
+    ratio: number,
+  ): Phaser.Math.Vector2 {
+    const horizontal = Math.abs(to.x - from.x);
+    const vertical = Math.abs(to.y - from.y);
+    const total = horizontal + vertical;
+    if (total === 0) {
+      return from.clone();
+    }
+    const distance = total * ratio;
+    if (distance <= horizontal) {
+      const direction = Math.sign(to.x - from.x);
+      return new Phaser.Math.Vector2(from.x + distance * direction, from.y);
+    }
+    const direction = Math.sign(to.y - from.y);
+    return new Phaser.Math.Vector2(
+      to.x,
+      from.y + (distance - horizontal) * direction,
+    );
   }
 
   private beginPlacement(nodeId: ArchitectureNodeId): void {
@@ -1412,9 +1512,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.previewGraphics.clear();
     this.resetTraffic();
     this.applyArchitecture(false);
-    this.statusText.setText(
-      "좌클릭: 정보 · 좌클릭 드래그: 이동 · 우클릭 드래그: 연결",
-    );
+    this.showLinkBudget();
   }
 
   private wait(duration: number): Promise<void> {

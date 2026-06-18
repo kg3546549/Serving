@@ -5,7 +5,11 @@ import type {
   ArchitectureNodeId,
   BuildSystemType,
 } from "../simulation/trafficSimulation";
-import { SYSTEM_CATALOG } from "../simulation/trafficSimulation";
+import {
+  getLinkTier,
+  getTotalConnectionCells,
+  SYSTEM_CATALOG,
+} from "../simulation/trafficSimulation";
 
 interface BuildDockProps {
   architecture: ArchitectureConfig;
@@ -22,6 +26,7 @@ interface BuildDockProps {
   ) => void;
   onCancelPlacement: () => void;
   onPurchaseSystem: (systemType: BuildSystemType) => void;
+  onUpgradeLinks: () => void;
   onClearConnections: () => void;
 }
 
@@ -189,9 +194,12 @@ export function BuildDock({
   onDropNode,
   onCancelPlacement,
   onPurchaseSystem,
+  onUpgradeLinks,
   onClearConnections,
 }: BuildDockProps): React.JSX.Element {
   const currentWave = waveIndex + 1;
+  const linkTier = getLinkTier(architecture.linkLevel);
+  const usedLinkCells = getTotalConnectionCells(architecture);
 
   return (
     <aside className="build-dock" aria-label="보유 장비와 인프라 상점">
@@ -253,6 +261,29 @@ export function BuildDock({
         <i>→</i>
         <span>RESPONSE</span>
       </div>
+
+      <section className="link-budget" aria-label="간선 용량">
+        <div>
+          <span>LINK CAPACITY</span>
+          <strong>
+            LV.{linkTier.level} · {usedLinkCells}/{linkTier.totalCells}칸
+          </strong>
+          <small>간선 1개 최대 {linkTier.maxEdgeCells}칸</small>
+        </div>
+        <button
+          type="button"
+          onClick={onUpgradeLinks}
+          disabled={
+            disabled ||
+            linkTier.upgradeCost === null ||
+            coins < linkTier.upgradeCost
+          }
+        >
+          {linkTier.upgradeCost === null
+            ? "MAX"
+            : `확장 ◈ ${linkTier.upgradeCost}`}
+        </button>
+      </section>
 
       <div className="shop-offers">
         {SHOP_ORDER.map((systemType) => {

@@ -13,7 +13,7 @@ describe("campaign store", () => {
     expect(state.architecture.hasDatabase).toBe(false);
     expect(state.architecture.nodePositions.entry).toEqual({
       column: 0,
-      row: 1,
+      row: 2,
     });
   });
 
@@ -21,8 +21,8 @@ describe("campaign store", () => {
     useGameStore.getState().resetCampaign();
     useGameStore.getState().purchaseSystem("serverA");
     useGameStore.getState().purchaseSystem("database");
-    useGameStore.getState().placeNode("serverA", { column: 4, row: 1 });
-    useGameStore.getState().placeNode("database", { column: 8, row: 1 });
+    useGameStore.getState().placeNode("serverA", { column: 4, row: 2 });
+    useGameStore.getState().placeNode("database", { column: 8, row: 2 });
     useGameStore.getState().toggleConnection("entry", "serverA");
     useGameStore.getState().toggleConnection("serverA", "database");
 
@@ -47,8 +47,43 @@ describe("campaign store", () => {
     useGameStore.getState().moveNode("entry", { column: 3, row: 2 });
     expect(useGameStore.getState().architecture.nodePositions.entry).toEqual({
       column: 0,
-      row: 1,
+      row: 2,
     });
+  });
+
+  it("enforces topology, port, and cable cell limits", () => {
+    useGameStore.getState().resetCampaign();
+    useGameStore.setState({ waveIndex: 4, coins: 500 });
+    useGameStore.getState().purchaseSystem("serverA");
+    useGameStore.getState().purchaseSystem("database");
+    useGameStore.getState().purchaseSystem("loadBalancer");
+    useGameStore.getState().purchaseSystem("serverB");
+    useGameStore.getState().placeNode("loadBalancer", { column: 2, row: 2 });
+    useGameStore.getState().placeNode("serverA", { column: 4, row: 2 });
+    useGameStore.getState().placeNode("serverB", { column: 4, row: 4 });
+    useGameStore.getState().placeNode("database", { column: 8, row: 2 });
+
+    useGameStore.getState().toggleConnection("entry", "database");
+    expect(useGameStore.getState().architecture.connections).toHaveLength(0);
+
+    useGameStore.getState().toggleConnection("entry", "serverA");
+    useGameStore.getState().toggleConnection("loadBalancer", "serverA");
+    expect(useGameStore.getState().architecture.connections).toHaveLength(1);
+
+    useGameStore.getState().clearConnections();
+    useGameStore.getState().toggleConnection("entry", "loadBalancer");
+    useGameStore.getState().toggleConnection("loadBalancer", "serverA");
+    useGameStore.getState().toggleConnection("loadBalancer", "serverB");
+    expect(useGameStore.getState().architecture.connections).toHaveLength(3);
+
+    useGameStore.getState().toggleConnection("serverA", "database");
+    expect(useGameStore.getState().architecture.connections).toHaveLength(3);
+
+    useGameStore.getState().upgradeLinks();
+    useGameStore.getState().toggleConnection("serverA", "database");
+    useGameStore.getState().toggleConnection("serverB", "database");
+    expect(useGameStore.getState().architecture.connections).toHaveLength(5);
+    expect(useGameStore.getState().architecture.linkLevel).toBe(2);
   });
 
   it("reduces service HP and advances after a failed wave", () => {
