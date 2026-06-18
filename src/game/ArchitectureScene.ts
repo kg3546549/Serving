@@ -427,7 +427,7 @@ export class ArchitectureScene extends Phaser.Scene {
     container.on("pointerout", () => container.setScale(1));
     container.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (
-        pointer.button === 2 &&
+        (pointer.button === 2 || pointer.rightButtonDown()) &&
         !this.isWaveRunning &&
         this.isNodeActive(nodeId)
       ) {
@@ -499,8 +499,15 @@ export class ArchitectureScene extends Phaser.Scene {
       this.moveTargetPosition = null;
       this.previewGraphics.clear();
       const position = this.worldToGrid(pointer.worldX, pointer.worldY);
+      const movementDistance = Phaser.Math.Distance.Between(
+        gesture.startX,
+        gesture.startY,
+        pointer.worldX,
+        pointer.worldY,
+      );
       const resolution = resolveNodeGesture({
         dragged: gesture.dragged,
+        movementDistance,
         source,
         target,
         position,

@@ -5,6 +5,7 @@ import type {
 
 interface NodeGestureInput {
   dragged: boolean;
+  movementDistance?: number;
   source: ArchitectureNodeId;
   target: ArchitectureNodeId | null;
   position: GridPosition | null;
@@ -27,12 +28,15 @@ export type NodeGestureResult =
 
 export function resolveNodeGesture({
   dragged,
+  movementDistance = 0,
   source,
   target,
   position,
   positionOccupied,
 }: NodeGestureInput): NodeGestureResult {
-  if (!dragged) {
+  const moved = dragged || movementDistance >= 9;
+
+  if (!moved) {
     return { type: "details", nodeId: source };
   }
   if (target) {
@@ -43,4 +47,3 @@ export function resolveNodeGesture({
   }
   return { type: "invalid" };
 }
-

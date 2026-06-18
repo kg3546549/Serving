@@ -89,6 +89,7 @@ export function GameHost({
       height: 720,
       parent: hostRef.current,
       backgroundColor: "#f6f0de",
+      disableContextMenu: true,
       scene: [ArchitectureScene],
       antialias: true,
       transparent: false,

@@ -42,6 +42,23 @@ describe("resolveNodeGesture", () => {
     });
   });
 
+  it("uses release distance when intermediate pointer moves are missing", () => {
+    expect(
+      resolveNodeGesture({
+        dragged: false,
+        movementDistance: 120,
+        source: "serverA",
+        target: null,
+        position: { column: 3, row: 2 },
+        positionOccupied: false,
+      }),
+    ).toEqual({
+      type: "move",
+      nodeId: "serverA",
+      position: { column: 3, row: 2 },
+    });
+  });
+
   it("rejects a right drag ending outside an available cell", () => {
     expect(
       resolveNodeGesture({
@@ -54,4 +71,3 @@ describe("resolveNodeGesture", () => {
     ).toEqual({ type: "invalid" });
   });
 });
-
