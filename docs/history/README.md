@@ -45,6 +45,10 @@ Source-Commit: <full-commit-sha>
 
 새 문서는 [_template.md](./_template.md)를 복사해 작성한다.
 
+## 등록된 변경 이력
+
+- [`76d61d65a31548d418f878e00d1a81f97c11a454`](./76d61d65a31548d418f878e00d1a81f97c11a454.md) — 서비스 도메인 캠페인 전환과 Stage 1 구현
+
 ## 이력 조회
 
 현재 브랜치의 구현 커밋 SHA를 확인한다.
