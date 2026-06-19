@@ -71,6 +71,7 @@ export function App(): React.JSX.Element {
   const moveNode = useGameStore((state) => state.moveNode);
   const toggleConnection = useGameStore((state) => state.toggleConnection);
   const upgradeLinks = useGameStore((state) => state.upgradeLinks);
+  const upgradeBoard = useGameStore((state) => state.upgradeBoard);
   const clearConnections = useGameStore((state) => state.clearConnections);
   const resetCampaign = useGameStore((state) => state.resetCampaign);
   const wave = STAGE_ONE_WAVES[waveIndex];
@@ -125,12 +126,16 @@ export function App(): React.JSX.Element {
 
   const handleContinue = useCallback(() => {
     setSelectedNode(null);
+    autoWaveStartedRef.current = false;
+    setPrepRemainingMs(MAINTENANCE_DURATION_MS);
     continueAfterResult();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [continueAfterResult]);
 
   const handleRestart = useCallback(() => {
     setSelectedNode(null);
+    autoWaveStartedRef.current = false;
+    setPrepRemainingMs(FIRST_WAVE_PREP_DURATION_MS);
     resetCampaign();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [resetCampaign]);
@@ -272,7 +277,6 @@ export function App(): React.JSX.Element {
           waveIndex={waveIndex}
           wave={wave}
           onPurchaseSystem={purchaseSystem}
-          onUpgradeLinks={upgradeLinks}
           onClearConnections={clearConnections}
         />
       </section>
@@ -288,10 +292,13 @@ export function App(): React.JSX.Element {
           <InventoryDock
             architecture={architecture}
             ownedNodes={ownedNodes}
+            coins={coins}
             disabled={phase !== "prepare"}
             onSelectNode={handleSelectNode}
             onDropNode={handleDropNode}
             onCancelPlacement={handleCancelPlacement}
+            onUpgradeLinks={upgradeLinks}
+            onUpgradeBoard={upgradeBoard}
           />
         </section>
       )}

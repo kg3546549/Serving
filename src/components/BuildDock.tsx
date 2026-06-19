@@ -4,11 +4,7 @@ import type {
   ArchitectureNodeId,
   BuildSystemType,
 } from "../simulation/trafficSimulation";
-import {
-  getLinkTier,
-  getTotalConnectionCells,
-  SYSTEM_CATALOG,
-} from "../simulation/trafficSimulation";
+import { SYSTEM_CATALOG } from "../simulation/trafficSimulation";
 import { DeviceIcon } from "./DeviceIcon";
 import { DEVICE_INFO } from "./devicePresentation";
 
@@ -20,7 +16,6 @@ interface BuildDockProps {
   waveIndex: number;
   wave: WaveDefinition;
   onPurchaseSystem: (systemType: BuildSystemType) => void;
-  onUpgradeLinks: () => void;
   onClearConnections: () => void;
 }
 
@@ -52,12 +47,9 @@ export function BuildDock({
   waveIndex,
   wave,
   onPurchaseSystem,
-  onUpgradeLinks,
   onClearConnections,
 }: BuildDockProps): React.JSX.Element {
   const currentWave = waveIndex + 1;
-  const linkTier = getLinkTier(architecture.linkLevel);
-  const usedLinkCells = getTotalConnectionCells(architecture);
 
   return (
     <aside className="build-dock" aria-label="인프라 상점">
@@ -89,29 +81,6 @@ export function BuildDock({
         <i>→</i>
         <span>RESPONSE</span>
       </div>
-
-      <section className="link-budget" aria-label="간선 용량">
-        <div>
-          <span>LINK CAPACITY</span>
-          <strong>
-            LV.{linkTier.level} · {usedLinkCells}/{linkTier.totalCells}칸
-          </strong>
-          <small>간선 1개 최대 {linkTier.maxEdgeCells}칸</small>
-        </div>
-        <button
-          type="button"
-          onClick={onUpgradeLinks}
-          disabled={
-            disabled ||
-            linkTier.upgradeCost === null ||
-            coins < linkTier.upgradeCost
-          }
-        >
-          {linkTier.upgradeCost === null
-            ? "MAX"
-            : `확장 ◈ ${linkTier.upgradeCost}`}
-        </button>
-      </section>
 
       <div className="shop-offers">
         {SHOP_ORDER.map((systemType) => {
@@ -170,7 +139,7 @@ export function BuildDock({
 
       <footer className="shop-footer">
         <p>
-          좌클릭 드래그: 이동 · 우클릭/Shift+드래그: 연결 · 입구는 고정
+          좌클릭 드래그: 이동 · 우클릭/Shift+드래그: 링크 · 입출구는 고정
         </p>
         <button
           type="button"
@@ -178,7 +147,7 @@ export function BuildDock({
           onClick={onClearConnections}
           disabled={disabled || architecture.connections.length === 0}
         >
-          모든 간선 지우기
+          모든 링크 제거
         </button>
       </footer>
     </aside>

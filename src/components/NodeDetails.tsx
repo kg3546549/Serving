@@ -19,19 +19,25 @@ const NODE_COPY: Record<
 > = {
   entry: {
     name: "Traffic Ingress",
-    role: "모든 외부 요청이 들어오고 최종 응답이 돌아가는 고정 지점",
+    role: "외부 HTTPS 요청이 보드로 들어오는 상단 고정 입구",
     color: "mint",
-    stats: ["위치 고정", "요청 생성", "응답 도착점"],
+    stats: ["위치 고정", "요청 생성", "파란 요청 링크"],
+  },
+  exit: {
+    name: "Response Egress",
+    role: "처리가 끝난 응답이 최종적으로 도착하는 고정 출구",
+    color: "purple",
+    stats: ["위치 고정", "응답 수신", "200 OK 피드백"],
   },
   loadBalancer: {
     name: "Load Balancer",
-    role: "요청을 앱 서버 A와 B에 Round Robin으로 분산",
+    role: "요청을 서버 A/B에 분산하고 응답을 출구로 전달",
     color: "purple",
     stats: ["Round Robin", "백엔드 2대", "분산 계층"],
   },
   serverA: {
     name: "App Server A",
-    role: "HTTPS 요청의 비즈니스 로직을 처리하고 DB 작업을 요청",
+    role: "HTTPS 로직과 DB 작업을 처리한 뒤 응답을 출구로 전달",
     color: "blue",
     stats: ["동시 처리 2", "Queue 6", "처리 시간 1.2초"],
   },
@@ -117,9 +123,9 @@ export function NodeDetails({
         )}
       </ul>
       <small className="node-details-hint">
-        {nodeId === "entry"
-          ? "고정 입구 · 우클릭 드래그로 다른 장비와 연결"
-          : "좌클릭 드래그로 이동 · 우클릭 드래그로 연결"}
+        {nodeId === "entry" || nodeId === "exit"
+          ? "고정 I/O · 우클릭/Shift+드래그로 링크 연결"
+          : "좌클릭 드래그로 이동 · 우클릭/Shift+드래그로 링크 연결"}
       </small>
     </aside>
   );

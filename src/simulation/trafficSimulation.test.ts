@@ -12,14 +12,17 @@ const directArchitecture: ArchitectureConfig = {
   hasDatabase: true,
   databaseIndexed: false,
   linkLevel: 1,
+  boardLevel: 1,
   nodePositions: {
     entry: DEFAULT_NODE_POSITIONS.entry,
-    serverA: DEFAULT_NODE_POSITIONS.serverA,
-    database: DEFAULT_NODE_POSITIONS.database,
+    exit: DEFAULT_NODE_POSITIONS.exit,
+    serverA: { column: 3, row: 1 },
+    database: { column: 3, row: 3 },
   },
   connections: [
     { from: "entry", to: "serverA" },
     { from: "serverA", to: "database" },
+    { from: "serverA", to: "exit" },
   ],
 };
 
@@ -29,9 +32,11 @@ const scaledArchitecture: ArchitectureConfig = {
   hasDatabase: true,
   databaseIndexed: true,
   linkLevel: 2,
+  boardLevel: 2,
   nodePositions: { ...DEFAULT_NODE_POSITIONS },
   connections: [
     { from: "entry", to: "loadBalancer" },
+    { from: "loadBalancer", to: "exit" },
     { from: "loadBalancer", to: "serverA" },
     { from: "loadBalancer", to: "serverB" },
     { from: "serverA", to: "database" },

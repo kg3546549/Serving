@@ -25,8 +25,8 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         </div>
         <h2 id="help-title">요청이 응답으로 돌아오게 구성하세요</h2>
         <p className="help-lead">
-          트래픽 입구만 고정되어 있습니다. App Server와 Primary DB를
-          상점에서 구매하고 배치한 뒤 장비 사이 경로를 연결하세요.
+          상단의 트래픽 입구와 응답 출구는 고정되어 있습니다. App Server와
+          Primary DB를 구매·배치하고 요청부터 응답까지 링크를 완성하세요.
         </p>
 
         <div className="reaction-guide">
@@ -38,7 +38,7 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <div>
             <span className="reaction-icon blocked">≋</span>
             <strong>포트 제한</strong>
-            <p>App은 트래픽 1개, LB는 트래픽 3개를 연결합니다.</p>
+            <p>App은 요청·응답 2개, LB는 분기용 트래픽 4개를 연결합니다.</p>
           </div>
           <div>
             <span className="reaction-icon closed">!</span>
@@ -50,18 +50,26 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         <details className="learn-more">
           <summary>어떤 경로를 그려야 하나요?</summary>
           <p>
-            Wave 1은 입구 → App Server A → Primary DB를 연결합니다.
-            Wave 5부터는 입구 → Load Balancer → 서버 A/B → DB의 분산
-            경로를 만들 수 있습니다. 입구 위치는 이동할 수 없습니다.
+            Wave 1은 입구 → App Server A → Primary DB → App Server A
+            → 출구 경로를 만듭니다. 입구 링크는 파랑, 출구 링크는 보라,
+            서버 내부의 양방향 링크는 두 색으로 표시됩니다.
           </p>
         </details>
 
         <details className="learn-more">
-          <summary>간선 길이와 LINK LEVEL</summary>
+          <summary>링크 길이와 LINK LEVEL</summary>
           <p>
-            간선 길이는 두 장비 사이의 가로·세로 칸 수로 계산합니다.
-            LINK LEVEL은 간선 하나의 최대 길이와 전체 사용 가능한 칸 수를
+            링크 길이는 두 장비 사이의 가로·세로 칸 수로 계산합니다.
+            LINK LEVEL은 링크 하나의 최대 길이와 전체 사용 가능한 칸 수를
             늘립니다. 긴 경로나 분산 구조를 만들기 전에 확장해야 합니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
+          <summary>BOARD LEVEL은 무엇인가요?</summary>
+          <p>
+            처음에는 7×4 보드만 사용할 수 있습니다. 하단 보유 장비 영역의
+            BOARD SIZE를 확장하면 10×5, 최종 13×6 영역이 열립니다.
           </p>
         </details>
 

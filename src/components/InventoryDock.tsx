@@ -3,12 +3,18 @@ import type {
   ArchitectureConfig,
   ArchitectureNodeId,
 } from "../simulation/trafficSimulation";
+import {
+  getBoardTier,
+  getLinkTier,
+  getTotalConnectionCells,
+} from "../simulation/trafficSimulation";
 import { DeviceIcon } from "./DeviceIcon";
 import { DEVICE_INFO } from "./devicePresentation";
 
 interface InventoryDockProps {
   architecture: ArchitectureConfig;
   ownedNodes: ArchitectureNodeId[];
+  coins: number;
   disabled: boolean;
   onSelectNode: (nodeId: ArchitectureNodeId) => void;
   onDropNode: (
@@ -17,6 +23,8 @@ interface InventoryDockProps {
     clientY: number,
   ) => void;
   onCancelPlacement: () => void;
+  onUpgradeLinks: () => void;
+  onUpgradeBoard: () => void;
 }
 
 interface InventoryCardProps {
@@ -115,14 +123,20 @@ function InventoryCard({
 export function InventoryDock({
   architecture,
   ownedNodes,
+  coins,
   disabled,
   onSelectNode,
   onDropNode,
   onCancelPlacement,
+  onUpgradeLinks,
+  onUpgradeBoard,
 }: InventoryDockProps): React.JSX.Element {
   const deployedCount = ownedNodes.filter(
     (nodeId) => architecture.nodePositions[nodeId] !== undefined,
   ).length;
+  const linkTier = getLinkTier(architecture.linkLevel);
+  const boardTier = getBoardTier(architecture.boardLevel);
+  const usedLinkCells = getTotalConnectionCells(architecture);
 
   return (
     <section className="inventory-dock" aria-label="보유 장비">
@@ -136,26 +150,79 @@ export function InventoryDock({
         </small>
       </header>
 
-      {ownedNodes.length === 0 ? (
-        <div className="inventory-dock-empty">
-          <strong>아직 보유한 장비가 없습니다.</strong>
-          <span>우측 상점에서 App Server와 Primary DB를 구매하세요.</span>
-        </div>
-      ) : (
-        <div className="inventory-dock-list">
-          {ownedNodes.map((nodeId) => (
-            <InventoryCard
-              key={nodeId}
-              nodeId={nodeId}
-              deployed={architecture.nodePositions[nodeId] !== undefined}
-              disabled={disabled}
-              onSelectNode={onSelectNode}
-              onDropNode={onDropNode}
-              onCancelPlacement={onCancelPlacement}
-            />
-          ))}
-        </div>
-      )}
+      <div className="capacity-controls">
+        <article className="capacity-card capacity-card--link">
+          <div>
+            <span>LINK CAPACITY</span>
+            <strong>
+              LV.{linkTier.level} · {usedLinkCells}/{linkTier.totalCells}칸
+            </strong>
+            <small>링크당 최대 {linkTier.maxEdgeCells}칸</small>
+            <small className="link-flow-legend">
+              요청 파랑 · 응답 보라 · DATA 노랑
+            </small>
+          </div>
+          <button
+            type="button"
+            onClick={onUpgradeLinks}
+            disabled={
+              disabled ||
+              linkTier.upgradeCost === null ||
+              coins < linkTier.upgradeCost
+            }
+          >
+            {linkTier.upgradeCost === null
+              ? "MAX"
+              : `확장 ◈ ${linkTier.upgradeCost}`}
+          </button>
+        </article>
+
+        <article className="capacity-card capacity-card--board">
+          <div>
+            <span>BOARD SIZE</span>
+            <strong>
+              LV.{boardTier.level} · {boardTier.columns}×{boardTier.rows}
+            </strong>
+            <small>배치 가능한 보드 영역</small>
+          </div>
+          <button
+            type="button"
+            onClick={onUpgradeBoard}
+            disabled={
+              disabled ||
+              boardTier.upgradeCost === null ||
+              coins < boardTier.upgradeCost
+            }
+          >
+            {boardTier.upgradeCost === null
+              ? "MAX"
+              : `확장 ◈ ${boardTier.upgradeCost}`}
+          </button>
+        </article>
+      </div>
+
+      <div className="inventory-equipment">
+        {ownedNodes.length === 0 ? (
+          <div className="inventory-dock-empty">
+            <strong>보유 장비 없음</strong>
+            <span>우측 상점에서 장비를 구매하세요.</span>
+          </div>
+        ) : (
+          <div className="inventory-dock-list">
+            {ownedNodes.map((nodeId) => (
+              <InventoryCard
+                key={nodeId}
+                nodeId={nodeId}
+                deployed={architecture.nodePositions[nodeId] !== undefined}
+                disabled={disabled}
+                onSelectNode={onSelectNode}
+                onDropNode={onDropNode}
+                onCancelPlacement={onCancelPlacement}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

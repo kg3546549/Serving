@@ -8,13 +8,15 @@ import type {
 } from "../simulation/trafficSimulation";
 import {
   DEFAULT_NODE_POSITIONS,
-  getConnectionKind,
+  getBoardTier,
+  getConnectionFlow,
   getConnectionLength,
   getLinkTier,
   getTotalConnectionCells,
   hasBalancedRoute,
   hasDirectConnection,
   isArchitectureNodePlaced,
+  isGridPositionAvailable,
   validateArchitectureConnections,
   validateNewConnection,
 } from "../simulation/trafficSimulation";
@@ -90,8 +92,10 @@ export class ArchitectureScene extends Phaser.Scene {
     hasDatabase: false,
     databaseIndexed: false,
     linkLevel: 1,
+    boardLevel: 1,
     nodePositions: {
       entry: { ...DEFAULT_NODE_POSITIONS.entry! },
+      exit: { ...DEFAULT_NODE_POSITIONS.exit! },
     },
     connections: [],
   };
@@ -179,34 +183,12 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private drawPastelWorld(): void {
     const sky = this.add.graphics();
-    sky.fillStyle(0xeaf6e7, 1);
+    sky.fillStyle(0xe9f3ee, 1);
     sky.fillRect(0, 0, WIDTH, 145);
     sky.fillStyle(COLORS.cream, 1);
     sky.fillRect(0, 145, WIDTH, HEIGHT - 145);
-
-    sky.fillStyle(0xffffff, 0.78);
-    sky.fillEllipse(120, 68, 180, 58);
-    sky.fillCircle(75, 56, 38);
-    sky.fillCircle(130, 42, 48);
-    sky.fillCircle(178, 58, 34);
-    sky.fillEllipse(1040, 74, 170, 55);
-    sky.fillCircle(995, 58, 35);
-    sky.fillCircle(1042, 45, 45);
-    sky.fillCircle(1086, 60, 31);
-
-    sky.fillStyle(COLORS.grass, 0.9);
-    sky.fillEllipse(100, 660, 450, 165);
-    sky.fillEllipse(1080, 660, 520, 180);
-
-    const dots = this.add.graphics();
-    for (let index = 0; index < 50; index += 1) {
-      dots.fillStyle(index % 3 === 0 ? COLORS.purple : COLORS.mint, 0.16);
-      dots.fillCircle(
-        35 + ((index * 97) % 1130),
-        175 + ((index * 61) % 385),
-        index % 5 === 0 ? 3 : 2,
-      );
-    }
+    sky.lineStyle(2, COLORS.grid, 0.45);
+    sky.lineBetween(0, 145, WIDTH, 145);
   }
 
   private createGrid(): void {
@@ -228,7 +210,11 @@ export class ArchitectureScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
 
         rectangle.on("pointerover", () => {
-          if (this.activePlacementNode && !this.isOccupied(position)) {
+          if (
+            isGridPositionAvailable(this.architecture, position) &&
+            this.activePlacementNode &&
+            !this.isOccupied(position)
+          ) {
             rectangle.setFillStyle(0xe6f7ef, 1);
             rectangle.setStrokeStyle(4, COLORS.mint, 1);
           }
@@ -237,6 +223,7 @@ export class ArchitectureScene extends Phaser.Scene {
         rectangle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (
             pointer.button === 0 &&
+            isGridPositionAvailable(this.architecture, position) &&
             this.activePlacementNode &&
             !this.isOccupied(position)
           ) {
@@ -252,6 +239,10 @@ export class ArchitectureScene extends Phaser.Scene {
     this.nodes.set(
       "entry",
       this.createEntryNode(this.gridToWorld(DEFAULT_NODE_POSITIONS.entry!)),
+    );
+    this.nodes.set(
+      "exit",
+      this.createExitNode(this.gridToWorld(DEFAULT_NODE_POSITIONS.exit!)),
     );
     this.nodes.set(
       "serverA",
@@ -304,6 +295,22 @@ export class ArchitectureScene extends Phaser.Scene {
     return { id: "entry", container };
   }
 
+  private createExitNode(position: Phaser.Math.Vector2): NodeView {
+    const container = this.add.container(position.x, position.y).setDepth(6);
+    const shadow = this.add.ellipse(0, 38, 72, 16, 0x36556f, 0.14);
+    const tile = this.add.rectangle(0, 0, 66, 66, COLORS.purpleDark);
+    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const icon = this.add.graphics();
+    icon.lineStyle(5, 0xffffff, 1);
+    icon.strokeCircle(0, 0, 19);
+    icon.lineBetween(-10, 0, -2, 9);
+    icon.lineBetween(-2, 9, 13, -9);
+    const label = this.createNodeLabel("Response Egress · FIXED", 0, 50);
+    container.add([shadow, tile, icon, label]);
+    this.makeConnectable(container, "exit");
+    return { id: "exit", container };
+  }
+
   private createServerNode(
     id: "serverA" | "serverB",
     position: Phaser.Math.Vector2,
@@ -325,7 +332,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(0, -1, "APP", {
         color: "#ffffff",
         fontFamily: "Arial",
-        fontSize: "10px",
+        fontSize: "12px",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
@@ -334,7 +341,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(0, 62, "대기 0", {
         color: "#7f8290",
         fontFamily: "Trebuchet MS",
-        fontSize: "9px",
+        fontSize: "11px",
         fontStyle: "bold",
         backgroundColor: "#fffdf8",
         padding: { x: 6, y: 3 },
@@ -384,7 +391,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(0, 0, "DB", {
         color: "#0074a8",
         fontFamily: "Arial",
-        fontSize: "8px",
+        fontSize: "10px",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
@@ -392,7 +399,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(0, 62, "대기 0", {
         color: "#7f8290",
         fontFamily: "Trebuchet MS",
-        fontSize: "9px",
+        fontSize: "11px",
         fontStyle: "bold",
         backgroundColor: "#fffdf8",
         padding: { x: 6, y: 3 },
@@ -426,7 +433,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(x, y, text, {
         color: "#5f616d",
         fontFamily: "Trebuchet MS",
-        fontSize: "10px",
+        fontSize: "12px",
         fontStyle: "bold",
         backgroundColor: "#fffdf8",
         padding: { x: 6, y: 3 },
@@ -451,13 +458,17 @@ export class ArchitectureScene extends Phaser.Scene {
         (pointer.event as MouseEvent | undefined)?.shiftKey,
       );
       if (
-        nodeId === "entry" &&
+        (nodeId === "entry" || nodeId === "exit") &&
         pointer.button === 0 &&
         !pointer.rightButtonDown() &&
         !shiftConnect
       ) {
         gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, { nodeId });
-        this.statusText.setText("트래픽 입구는 고정 시설입니다");
+        this.statusText.setText(
+          nodeId === "entry"
+            ? "트래픽 입구는 고정 시설입니다"
+            : "응답 출구는 고정 시설입니다",
+        );
         return;
       }
       if (
@@ -593,7 +604,7 @@ export class ArchitectureScene extends Phaser.Scene {
           resolution.to,
         );
         const validation = exists
-          ? { valid: true, reason: "간선을 제거했습니다." }
+          ? { valid: true, reason: "링크를 제거했습니다." }
           : validateNewConnection(
               this.architecture,
               resolution.from,
@@ -604,10 +615,19 @@ export class ArchitectureScene extends Phaser.Scene {
             from: resolution.from,
             to: resolution.to,
           });
+          const flow = getConnectionFlow(resolution.from, resolution.to);
+          const flowLabel =
+            flow === "request"
+              ? "REQUEST"
+              : flow === "response"
+                ? "RESPONSE"
+                : flow === "duplex"
+                  ? "DUPLEX"
+                  : "DATA";
           this.statusText.setText(
             exists
-              ? "간선을 제거했습니다"
-              : `${validation.kind === "data" ? "DATA" : "TRAFFIC"} ${validation.length}칸 연결 완료`,
+              ? "링크를 제거했습니다"
+              : `${flowLabel} 링크 ${validation.length}칸 연결 완료`,
           );
         } else {
           this.statusText.setText(validation.reason);
@@ -657,12 +677,12 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(
         WIDTH / 2,
         102,
-        "포트 제한 · 간선 길이 · 전체 케이블 예산을 확인하세요",
+        "포트 제한 · 링크 길이 · 보드 영역을 확인하세요",
         {
-        color: "#676975",
-        fontFamily: "Trebuchet MS",
-        fontSize: "13px",
-        fontStyle: "bold",
+          color: "#676975",
+          fontFamily: "Trebuchet MS",
+          fontSize: "15px",
+          fontStyle: "bold",
         },
       )
       .setOrigin(0.5)
@@ -702,12 +722,24 @@ export class ArchitectureScene extends Phaser.Scene {
       }
       const from = this.getNodePosition(connection.from);
       const to = this.getNodePosition(connection.to);
-      const kind = getConnectionKind(connection.from, connection.to);
-      const pathColor = kind === "data" ? COLORS.purple : COLORS.mint;
+      const flow = getConnectionFlow(connection.from, connection.to);
       this.pathGraphics.lineStyle(13, COLORS.path, 0.62);
       this.drawOrthogonalLine(this.pathGraphics, from, to);
-      this.pathGraphics.lineStyle(6, pathColor, 0.9);
-      this.drawOrthogonalLine(this.pathGraphics, from, to);
+      if (flow === "duplex") {
+        this.pathGraphics.lineStyle(8, COLORS.blue, 0.95);
+        this.drawOrthogonalLine(this.pathGraphics, from, to);
+        this.pathGraphics.lineStyle(3, COLORS.purple, 1);
+        this.drawOrthogonalLine(this.pathGraphics, from, to);
+      } else {
+        const pathColor =
+          flow === "request"
+            ? COLORS.blue
+            : flow === "response"
+              ? COLORS.purple
+              : COLORS.yellow;
+        this.pathGraphics.lineStyle(6, pathColor, 0.95);
+        this.drawOrthogonalLine(this.pathGraphics, from, to);
+      }
       this.pathGraphics.fillStyle(0xffffff, 0.75);
       const length = getConnectionLength(this.architecture, connection);
       for (let step = 1; step < length; step += 1) {
@@ -723,9 +755,10 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private showLinkBudget(): void {
-    const tier = getLinkTier(this.architecture.linkLevel);
+    const linkTier = getLinkTier(this.architecture.linkLevel);
+    const boardTier = getBoardTier(this.architecture.boardLevel);
     this.statusText.setText(
-      `LINK LV.${tier.level} · 간선 ${getTotalConnectionCells(this.architecture)}/${tier.totalCells}칸 · 1개 최대 ${tier.maxEdgeCells}칸`,
+      `BOARD LV.${boardTier.level} ${boardTier.columns}×${boardTier.rows} · LINK LV.${linkTier.level} ${getTotalConnectionCells(this.architecture)}/${linkTier.totalCells}칸`,
     );
   }
 
@@ -778,8 +811,12 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private handleInventoryDrop(payload: InventoryDropPayload): void {
     const position = this.worldToGrid(payload.x, payload.y);
-    if (!position || this.isOccupied(position)) {
-      this.statusText.setText("비어 있는 격자 칸에 놓아 주세요");
+    if (
+      !position ||
+      !isGridPositionAvailable(this.architecture, position) ||
+      this.isOccupied(position)
+    ) {
+      this.statusText.setText("현재 보드의 비어 있는 격자 칸에 놓아 주세요");
       this.cameras.main.shake(100, 0.002);
       return;
     }
@@ -811,6 +848,11 @@ export class ArchitectureScene extends Phaser.Scene {
         candidate.position.row === position.row,
     );
     if (!cell) {
+      return;
+    }
+    const available = isGridPositionAvailable(this.architecture, position);
+    cell.rectangle.setVisible(available);
+    if (!available) {
       return;
     }
     const occupied = this.isOccupied(position);
@@ -1008,7 +1050,7 @@ export class ArchitectureScene extends Phaser.Scene {
         {
         color: `#${color.toString(16).padStart(6, "0")}`,
         fontFamily: "Arial",
-        fontSize: operation === "write" ? "6px" : "7px",
+        fontSize: operation === "write" ? "8px" : "9px",
         fontStyle: "bold",
         },
       )
@@ -1145,11 +1187,11 @@ export class ArchitectureScene extends Phaser.Scene {
     request.setAlpha(1).setScale(0.72);
     const responseLabel = this.add
       .text(0, -23, "RESPONSE", {
-        color: "#3f8f72",
+        color: "#6d55aa",
         fontFamily: "Arial",
-        fontSize: "7px",
+        fontSize: "10px",
         fontStyle: "bold",
-        backgroundColor: "#effbf5",
+        backgroundColor: "#f3effc",
         padding: { x: 4, y: 2 },
       })
       .setOrigin(0.5);
@@ -1166,8 +1208,34 @@ export class ArchitectureScene extends Phaser.Scene {
     if (!request) {
       return;
     }
-    const entry = this.getNodePosition("entry");
-    request.setPosition(entry.x, entry.y).setAlpha(1).setScale(0.8);
+    const exit = this.getNodePosition("exit");
+    request.setPosition(exit.x, exit.y).setAlpha(1).setScale(0.8);
+    const pulse = this.add
+      .circle(exit.x, exit.y, 28, COLORS.green, 0.12)
+      .setStrokeStyle(5, COLORS.green, 0.95)
+      .setDepth(11);
+    const feedback = this.add
+      .text(exit.x, exit.y - 52, "200 OK", {
+        color: "#32855c",
+        fontFamily: "Arial",
+        fontSize: "16px",
+        fontStyle: "bold",
+        backgroundColor: "#e9f8ef",
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(0.5)
+      .setDepth(22);
+    this.tweens.add({
+      targets: [pulse, feedback],
+      y: "-=12",
+      scale: 1.35,
+      alpha: 0,
+      duration: 520,
+      onComplete: () => {
+        pulse.destroy();
+        feedback.destroy();
+      },
+    });
     this.tweens.add({
       targets: request,
       scale: 1.2,
@@ -1324,13 +1392,13 @@ export class ArchitectureScene extends Phaser.Scene {
         this.getNodePosition("database"),
         this.getNodePosition(serverNode),
         this.getNodePosition("loadBalancer"),
-        this.getNodePosition("entry"),
+        this.getNodePosition("exit"),
       ];
     }
     return [
       this.getNodePosition("database"),
       this.getNodePosition("serverA"),
-      this.getNodePosition("entry"),
+      this.getNodePosition("exit"),
     ];
   }
 
@@ -1417,7 +1485,10 @@ export class ArchitectureScene extends Phaser.Scene {
     ) {
       return null;
     }
-    return { column, row };
+    const position = { column, row };
+    return isGridPositionAvailable(this.architecture, position)
+      ? position
+      : null;
   }
 
   private isOccupied(

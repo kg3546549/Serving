@@ -9,7 +9,10 @@ import type {
 } from "../simulation/trafficSimulation";
 import {
   FIXED_ENTRY_POSITION,
+  FIXED_EXIT_POSITION,
+  getBoardTier,
   getLinkTier,
+  isGridPositionAvailable,
   SYSTEM_CATALOG,
   validateArchitectureConnections,
   validateNewConnection,
@@ -54,6 +57,7 @@ interface GameState {
     to: ArchitectureNodeId,
   ) => void;
   upgradeLinks: () => void;
+  upgradeBoard: () => void;
   clearConnections: () => void;
   resetCampaign: () => void;
 }
@@ -64,8 +68,10 @@ const createInitialArchitecture = (): ArchitectureConfig => ({
   hasDatabase: false,
   databaseIndexed: false,
   linkLevel: 1,
+  boardLevel: 1,
   nodePositions: {
     entry: { ...FIXED_ENTRY_POSITION },
+    exit: { ...FIXED_EXIT_POSITION },
   },
   connections: [],
 });
@@ -209,7 +215,9 @@ export const useGameStore = create<GameState>((set) => ({
       if (
         state.phase !== "prepare" ||
         nodeId === "entry" ||
+        nodeId === "exit" ||
         !state.ownedNodes.includes(nodeId) ||
+        !isGridPositionAvailable(state.architecture, position) ||
         isPositionOccupied(state.architecture, position, nodeId)
       ) {
         return state;
@@ -230,7 +238,9 @@ export const useGameStore = create<GameState>((set) => ({
       if (
         state.phase !== "prepare" ||
         nodeId === "entry" ||
+        nodeId === "exit" ||
         state.architecture.nodePositions[nodeId] === undefined ||
+        !isGridPositionAvailable(state.architecture, position) ||
         isPositionOccupied(state.architecture, position, nodeId)
       ) {
         return state;
@@ -307,6 +317,28 @@ export const useGameStore = create<GameState>((set) => ({
         architecture: {
           ...state.architecture,
           linkLevel: (state.architecture.linkLevel + 1) as 2 | 3,
+        },
+      };
+    }),
+
+  upgradeBoard: () =>
+    set((state) => {
+      if (state.phase !== "prepare") {
+        return state;
+      }
+      const tier = getBoardTier(state.architecture.boardLevel);
+      if (
+        tier.upgradeCost === null ||
+        state.coins < tier.upgradeCost ||
+        state.architecture.boardLevel >= 3
+      ) {
+        return state;
+      }
+      return {
+        coins: state.coins - tier.upgradeCost,
+        architecture: {
+          ...state.architecture,
+          boardLevel: (state.architecture.boardLevel + 1) as 2 | 3,
         },
       };
     }),

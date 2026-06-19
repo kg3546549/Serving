@@ -12,6 +12,7 @@ export type BuildSystemType =
 
 export type ArchitectureNodeId =
   | "entry"
+  | "exit"
   | "loadBalancer"
   | "serverA"
   | "serverB"
@@ -28,12 +29,21 @@ export interface ArchitectureConnection {
 }
 
 export type LinkLevel = 1 | 2 | 3;
+export type BoardLevel = 1 | 2 | 3;
 export type ConnectionKind = "traffic" | "data";
+export type ConnectionFlow = "request" | "response" | "duplex" | "data";
 
 export interface LinkTier {
   level: LinkLevel;
   maxEdgeCells: number;
   totalCells: number;
+  upgradeCost: number | null;
+}
+
+export interface BoardTier {
+  level: BoardLevel;
+  columns: number;
+  rows: number;
   upgradeCost: number | null;
 }
 
@@ -48,14 +58,16 @@ export type ArchitectureNodePositions = Partial<
   Record<ArchitectureNodeId, GridPosition>
 >;
 
-export const FIXED_ENTRY_POSITION: GridPosition = { column: 0, row: 2 };
+export const FIXED_ENTRY_POSITION: GridPosition = { column: 1, row: 0 };
+export const FIXED_EXIT_POSITION: GridPosition = { column: 5, row: 0 };
 
 export const DEFAULT_NODE_POSITIONS: ArchitectureNodePositions = {
   entry: FIXED_ENTRY_POSITION,
-  loadBalancer: { column: 2, row: 2 },
-  serverA: { column: 4, row: 2 },
-  serverB: { column: 4, row: 4 },
-  database: { column: 8, row: 2 },
+  exit: FIXED_EXIT_POSITION,
+  loadBalancer: { column: 3, row: 1 },
+  serverA: { column: 5, row: 2 },
+  serverB: { column: 5, row: 4 },
+  database: { column: 8, row: 3 },
 };
 
 export interface ArchitectureConfig {
@@ -64,6 +76,7 @@ export interface ArchitectureConfig {
   hasDatabase: boolean;
   databaseIndexed: boolean;
   linkLevel: LinkLevel;
+  boardLevel: BoardLevel;
   nodePositions: ArchitectureNodePositions;
   connections: ArchitectureConnection[];
 }
@@ -74,18 +87,42 @@ export const LINK_TIERS: readonly LinkTier[] = [
   { level: 3, maxEdgeCells: 9, totalCells: 36, upgradeCost: null },
 ] as const;
 
+export const BOARD_TIERS: readonly BoardTier[] = [
+  { level: 1, columns: 7, rows: 4, upgradeCost: 90 },
+  { level: 2, columns: 10, rows: 5, upgradeCost: 140 },
+  { level: 3, columns: 13, rows: 6, upgradeCost: null },
+] as const;
+
 export const NODE_PORT_LIMITS: Readonly<
   Record<ArchitectureNodeId, Record<ConnectionKind, number>>
 > = {
   entry: { traffic: 1, data: 0 },
-  loadBalancer: { traffic: 3, data: 0 },
-  serverA: { traffic: 1, data: 1 },
+  exit: { traffic: 1, data: 0 },
+  loadBalancer: { traffic: 4, data: 0 },
+  serverA: { traffic: 2, data: 1 },
   serverB: { traffic: 1, data: 1 },
   database: { traffic: 0, data: 2 },
 } as const;
 
 export function getLinkTier(level: LinkLevel): LinkTier {
   return LINK_TIERS[level - 1] ?? LINK_TIERS[0];
+}
+
+export function getBoardTier(level: BoardLevel): BoardTier {
+  return BOARD_TIERS[level - 1] ?? BOARD_TIERS[0];
+}
+
+export function isGridPositionAvailable(
+  architecture: ArchitectureConfig,
+  position: GridPosition,
+): boolean {
+  const tier = getBoardTier(architecture.boardLevel);
+  return (
+    position.column >= 0 &&
+    position.column < tier.columns &&
+    position.row >= 0 &&
+    position.row < tier.rows
+  );
 }
 
 export function getConnectionLength(
@@ -132,10 +169,34 @@ export function getConnectionKind(
       (right === "loadBalancer" || right === "serverA")) ||
     (right === "entry" &&
       (left === "loadBalancer" || left === "serverA")) ||
+    (left === "exit" &&
+      (right === "loadBalancer" || right === "serverA")) ||
+    (right === "exit" &&
+      (left === "loadBalancer" || left === "serverA")) ||
     (left === "loadBalancer" && isServer(right)) ||
     (right === "loadBalancer" && isServer(left))
   ) {
     return "traffic";
+  }
+  return null;
+}
+
+export function getConnectionFlow(
+  left: ArchitectureNodeId,
+  right: ArchitectureNodeId,
+): ConnectionFlow | null {
+  const kind = getConnectionKind(left, right);
+  if (kind === "data") {
+    return "data";
+  }
+  if (left === "entry" || right === "entry") {
+    return "request";
+  }
+  if (left === "exit" || right === "exit") {
+    return "response";
+  }
+  if (kind === "traffic") {
+    return "duplex";
   }
   return null;
 }
@@ -200,11 +261,26 @@ export function validateArchitectureConnections(
         reason: "배치되지 않은 장비는 연결할 수 없습니다.",
       };
     }
+    if (
+      !isGridPositionAvailable(
+        architecture,
+        architecture.nodePositions[connection.from]!,
+      ) ||
+      !isGridPositionAvailable(
+        architecture,
+        architecture.nodePositions[connection.to]!,
+      )
+    ) {
+      return {
+        valid: false,
+        reason: "현재 보드 영역 밖의 장비는 링크를 사용할 수 없습니다.",
+      };
+    }
     const length = getConnectionLength(architecture, connection);
     if (length > tier.maxEdgeCells) {
       return {
         valid: false,
-        reason: `LINK LV.${tier.level}의 간선 하나는 최대 ${tier.maxEdgeCells}칸입니다.`,
+        reason: `LINK LV.${tier.level}의 링크 하나는 최대 ${tier.maxEdgeCells}칸입니다.`,
         kind,
         length,
       };
@@ -214,7 +290,7 @@ export function validateArchitectureConnections(
   if (totalCells > tier.totalCells) {
     return {
       valid: false,
-      reason: `LINK LV.${tier.level}의 전체 간선 예산은 ${tier.totalCells}칸입니다.`,
+      reason: `LINK LV.${tier.level}의 전체 링크 용량은 ${tier.totalCells}칸입니다.`,
     };
   }
   return validatePortUsage(architecture);
@@ -232,6 +308,15 @@ export function validateNewConnection(
     return {
       valid: false,
       reason: "배치되지 않은 장비는 연결할 수 없습니다.",
+    };
+  }
+  if (
+    !isGridPositionAvailable(architecture, architecture.nodePositions[from]!) ||
+    !isGridPositionAvailable(architecture, architecture.nodePositions[to]!)
+  ) {
+    return {
+      valid: false,
+      reason: "보드를 확장해야 이 위치의 장비를 연결할 수 있습니다.",
     };
   }
   const kind = getConnectionKind(from, to);
@@ -480,10 +565,12 @@ export function hasSingleServerRoute(
     architecture.serverCount >= 1 &&
     architecture.hasDatabase &&
     isArchitectureNodePlaced(architecture, "entry") &&
+    isArchitectureNodePlaced(architecture, "exit") &&
     isArchitectureNodePlaced(architecture, "serverA") &&
     isArchitectureNodePlaced(architecture, "database") &&
     hasDirectConnection(architecture, "entry", "serverA") &&
-    hasDirectConnection(architecture, "serverA", "database")
+    hasDirectConnection(architecture, "serverA", "database") &&
+    hasDirectConnection(architecture, "serverA", "exit")
   );
 }
 
@@ -495,11 +582,13 @@ export function hasBalancedRoute(
     architecture.serverCount === 2 &&
     architecture.hasDatabase &&
     isArchitectureNodePlaced(architecture, "entry") &&
+    isArchitectureNodePlaced(architecture, "exit") &&
     isArchitectureNodePlaced(architecture, "loadBalancer") &&
     isArchitectureNodePlaced(architecture, "serverA") &&
     isArchitectureNodePlaced(architecture, "serverB") &&
     isArchitectureNodePlaced(architecture, "database") &&
     hasDirectConnection(architecture, "entry", "loadBalancer") &&
+    hasDirectConnection(architecture, "loadBalancer", "exit") &&
     hasDirectConnection(architecture, "loadBalancer", "serverA") &&
     hasDirectConnection(architecture, "loadBalancer", "serverB") &&
     hasDirectConnection(architecture, "serverA", "database") &&
@@ -582,8 +671,8 @@ function createNoRouteResult(
       passed: false,
     },
     bottleneckNode: "route",
-    bottleneck:
-      "요청 경로가 완성되지 않았습니다. 고정 입구, App Server, Primary DB를 배치하고 연결하세요.",
+      bottleneck:
+      "요청·응답 경로가 완성되지 않았습니다. 상단 입구와 출구, App Server, Primary DB를 링크로 연결하세요.",
   };
 }
 
@@ -971,7 +1060,7 @@ export function simulateTrafficWave(
     bottleneckNode = "server";
     bottleneck =
       architecture.serverCount === 2 && !balancedRoute
-        ? "두 번째 App Server가 있지만 Load Balancer 분산 경로가 완성되지 않았습니다."
+        ? "두 번째 App Server가 있지만 Load Balancer 요청·응답 링크가 완성되지 않았습니다."
         : "App Server 처리 슬롯과 Queue가 포화되었습니다. 수평 확장이 필요합니다.";
   } else if (database.peakQueue >= 6) {
     bottleneckNode = "database";
