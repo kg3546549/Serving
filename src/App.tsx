@@ -22,6 +22,7 @@ import { MainMenu } from "./components/MainMenu";
 import { MissionHud } from "./components/MissionHud";
 import { NodeDetails } from "./components/NodeDetails";
 import { ResultModal } from "./components/ResultModal";
+import { ResourceDetailsPopup } from "./components/ResourceDetailsPopup";
 import { ShopDock } from "./components/ShopDock";
 import { GAME_EVENTS, gameEvents } from "./game/bridge/gameEvents";
 import {
@@ -31,6 +32,8 @@ import {
   simulateTrafficWave,
   type ArchitectureNodeId,
   type GridPosition,
+  type NodeInstance,
+  type ShopItemType,
   type WaveSimulationResult,
 } from "./simulation/trafficSimulation";
 import {
@@ -50,6 +53,10 @@ export function App(): React.JSX.Element {
   const [isHelpOpen, setHelpOpen] = useState(false);
   const [selectedNode, setSelectedNode] =
     useState<ArchitectureNodeId | null>(null);
+  const [selectedResource, setSelectedResource] = useState<{
+    type: ShopItemType;
+    instance?: NodeInstance;
+  } | null>(null);
   const [prepRemainingMs, setPrepRemainingMs] =
     useState(FIRST_WAVE_PREP_DURATION_MS);
   const autoWaveStartedRef = useRef(false);
@@ -263,6 +270,7 @@ export function App(): React.JSX.Element {
   const isTimerPaused =
     isHelpOpen ||
     selectedNode !== null ||
+    selectedResource !== null ||
     augmentState !== null ||
     pendingInfrastructureUpgrades > 0;
 
@@ -314,15 +322,14 @@ export function App(): React.JSX.Element {
           onHelp={() => setHelpOpen(true)}
         />
 
-        <div className="board-meta">
-          <span>BOARD LV. {boardTier.level}</span>
-          <b>{boardTier.columns} × {boardTier.rows}</b>
-          <i />
-          <span>LINK LV. {linkTier.level}</span>
-          <b>{getTotalConnectionCells(architecture)} / {linkTier.totalCells}</b>
-        </div>
-
         <section className="board-stage" aria-label="아키텍처 보드">
+          <div className="board-meta board-meta--overlay">
+            <span>BOARD {boardTier.level}</span>
+            <b>{boardTier.columns}×{boardTier.rows}</b>
+            <i />
+            <span>LINK {linkTier.level}</span>
+            <b>{getTotalConnectionCells(architecture)}/{linkTier.totalCells}</b>
+          </div>
           <div className="world-frame">
             <Suspense
               fallback={<div className="world-loading">보드 준비 중...</div>}
@@ -367,7 +374,9 @@ export function App(): React.JSX.Element {
             onSelectNode={handleSelectNode}
             onDropNode={handleDropNode}
             onCancelPlacement={handleCancelPlacement}
-            onSellNode={sellNode}
+            onInspectItem={(item) =>
+              setSelectedResource({ type: item.type, instance: item })
+            }
           />
         )}
       </section>
@@ -384,10 +393,26 @@ export function App(): React.JSX.Element {
         onRollShop={() => rollShop(false)}
         onBuyXp={buyXp}
         onBuyShopItem={buyShopItem}
+        onInspectItem={(type) => setSelectedResource({ type })}
         onClearConnections={clearConnections}
       />
 
       {isHelpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+      {selectedResource && (
+        <ResourceDetailsPopup
+          type={selectedResource.type}
+          instance={selectedResource.instance}
+          onClose={() => setSelectedResource(null)}
+          onSell={
+            selectedResource.instance && phase === "prepare"
+              ? () => {
+                  sellNode(selectedResource.instance!.id);
+                  setSelectedResource(null);
+                }
+              : undefined
+          }
+        />
+      )}
       {(phase === "result" ||
         phase === "cleared" ||
         phase === "defeated") &&

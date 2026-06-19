@@ -78,10 +78,10 @@ const GRID = {
   cellHeight: 70,
 };
 const COLORS = {
-  cream: 0xfff8e8,
-  paper: 0xfffffb,
+  cream: 0x142238,
+  paper: 0xf6f8f1,
   grass: 0xdcefc3,
-  grid: 0xd8cfbd,
+  grid: 0xaabbb5,
   ink: 0x5b5d69,
   muted: 0x96939c,
   mint: 0x7dd9be,
@@ -95,7 +95,7 @@ const COLORS = {
   pink: 0xf29aac,
   red: 0xe86d7e,
   green: 0x79cf94,
-  path: 0xc7b998,
+  path: 0x344a65,
 };
 
 export class ArchitectureScene extends Phaser.Scene {
@@ -121,9 +121,16 @@ export class ArchitectureScene extends Phaser.Scene {
   private nodes = new Map<ArchitectureNodeId, NodeView>();
   private gridCells: GridCellView[] = [];
   private requestViews = new Map<number, Phaser.GameObjects.Container>();
+  private requestTrails = new Map<
+    number,
+    Phaser.GameObjects.Particles.ParticleEmitter
+  >();
+  private boardGraphics!: Phaser.GameObjects.Graphics;
   private pathGraphics!: Phaser.GameObjects.Graphics;
   private previewGraphics!: Phaser.GameObjects.Graphics;
+  private statusPanel!: Phaser.GameObjects.Rectangle;
   private statusText!: Phaser.GameObjects.Text;
+  private cameraBounds = new Phaser.Geom.Rectangle();
   private activePlacementNode: ArchitectureNodeId | null = null;
   private activePlacementInstanceId: string | null = null;
   private nodeGesture: NodeGesture | null = null;
@@ -146,8 +153,10 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor("#fff8e8");
+    this.cameras.main.setBackgroundColor("#142238");
     this.input.mouse?.disableContextMenu();
+    this.createVfxTextures();
+    this.boardGraphics = this.add.graphics().setDepth(0);
     this.drawPastelWorld();
     this.createGrid();
     this.pathGraphics = this.add.graphics().setDepth(2);
@@ -159,6 +168,12 @@ export class ArchitectureScene extends Phaser.Scene {
     this.bindBoardCameraControls();
     this.applyArchitecture(false);
     this.fitBoardView(false);
+    this.scale.on(
+      Phaser.Scale.Events.RESIZE,
+      this.handleScaleResize,
+      this,
+    );
+    this.time.delayedCall(0, () => this.fitBoardView(false));
 
     gameEvents.emit(GAME_EVENTS.SCENE_READY, undefined);
     this.cameras.main.fadeIn(300, 255, 248, 232);
@@ -175,15 +190,34 @@ export class ArchitectureScene extends Phaser.Scene {
         ({ architecture }) => {
           const boardLevelChanged =
             architecture.boardLevel !== this.architecture.boardLevel;
-          const placedNewNode = (
+          const placedNodeId = (
             Object.keys(architecture.nodePositions) as ArchitectureNodeId[]
-          ).some(
+          ).find(
             (nodeId) =>
               architecture.nodePositions[nodeId] !== undefined &&
               this.architecture.nodePositions[nodeId] === undefined,
           );
+          const addedConnection = architecture.connections.find(
+            (connection) =>
+              !this.architecture.connections.some(
+                (current) =>
+                  (current.from === connection.from &&
+                    current.to === connection.to) ||
+                  (current.from === connection.to &&
+                    current.to === connection.from),
+              ),
+          );
           this.architecture = architecture;
-          this.applyArchitecture(placedNewNode);
+          this.applyArchitecture(false);
+          if (placedNodeId) {
+            const node = this.nodes.get(placedNodeId);
+            if (node) {
+              this.playBuildPop(node.container);
+            }
+          }
+          if (addedConnection) {
+            this.playLinkPulse(addedConnection.from, addedConnection.to);
+          }
           if (boardLevelChanged) {
             this.fitBoardView(false);
           }
@@ -221,7 +255,17 @@ export class ArchitectureScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-SPACE");
       this.input.keyboard?.off("keyup-SPACE");
       this.input.keyboard?.off("keydown-R");
+      this.scale.off(
+        Phaser.Scale.Events.RESIZE,
+        this.handleScaleResize,
+        this,
+      );
     });
+  }
+
+  private handleScaleResize(): void {
+    this.layoutFixedHud();
+    this.fitBoardView(false);
   }
 
   private bindBoardCameraControls(): void {
@@ -247,8 +291,6 @@ export class ArchitectureScene extends Phaser.Scene {
       ) => {
         const camera = this.cameras.main;
         const beforeZoom = camera.getWorldPoint(pointer.x, pointer.y);
-        const cameraCenterX = camera.width / 2;
-        const cameraCenterY = camera.height / 2;
         const direction = deltaY > 0 ? -1 : 1;
         const nextZoom = Phaser.Math.Clamp(
           Number((camera.zoom + direction * BOARD_ZOOM.step).toFixed(2)),
@@ -259,14 +301,10 @@ export class ArchitectureScene extends Phaser.Scene {
           return;
         }
         camera.setZoom(nextZoom);
-        camera.scrollX =
-          beforeZoom.x -
-          cameraCenterX -
-          (pointer.x - cameraCenterX) / nextZoom;
-        camera.scrollY =
-          beforeZoom.y -
-          cameraCenterY -
-          (pointer.y - cameraCenterY) / nextZoom;
+        camera.scrollX = beforeZoom.x - pointer.x / nextZoom;
+        camera.scrollY = beforeZoom.y - pointer.y / nextZoom;
+        this.updateCameraBounds();
+        this.clampCamera();
         this.syncCameraMetadata();
       },
     );
@@ -304,18 +342,25 @@ export class ArchitectureScene extends Phaser.Scene {
   private fitBoardView(showStatus = true): void {
     const camera = this.cameras.main;
     const boardTier = getBoardTier(this.architecture.boardLevel);
-    const zoomByLevel = {
-      1: 1.05,
-      2: 0.88,
-      3: 0.72,
-    } as const;
+    const boardWidth = boardTier.columns * GRID.cellWidth;
+    const boardHeight = boardTier.rows * GRID.cellHeight;
+    const zoom = Phaser.Math.Clamp(
+      Math.min(
+        Math.max(1, camera.width - 70) / (boardWidth + 56),
+        Math.max(1, camera.height - 76) / (boardHeight + 56),
+      ),
+      BOARD_ZOOM.min,
+      1.18,
+    );
     const boardCenterX =
-      GRID.left + (boardTier.columns * GRID.cellWidth) / 2;
+      GRID.left + boardWidth / 2;
     const boardCenterY =
-      GRID.top + (boardTier.rows * GRID.cellHeight) / 2;
+      GRID.top + boardHeight / 2;
 
-    camera.setZoom(zoomByLevel[boardTier.level]);
+    camera.setZoom(Number(zoom.toFixed(2)));
+    this.updateCameraBounds();
     camera.centerOn(boardCenterX, boardCenterY);
+    this.clampCamera();
     this.boardPanGesture = null;
     this.input.setDefaultCursor("default");
     this.syncCameraMetadata();
@@ -326,6 +371,7 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private adjustBoardZoom(delta: number): void {
     const camera = this.cameras.main;
+    const center = camera.getWorldPoint(camera.width / 2, camera.height / 2);
     camera.setZoom(
       Phaser.Math.Clamp(
         Number((camera.zoom + delta).toFixed(2)),
@@ -333,7 +379,46 @@ export class ArchitectureScene extends Phaser.Scene {
         BOARD_ZOOM.max,
       ),
     );
+    this.updateCameraBounds();
+    camera.centerOn(center.x, center.y);
+    this.clampCamera();
     this.syncCameraMetadata();
+  }
+
+  private updateCameraBounds(): void {
+    const camera = this.cameras.main;
+    const boardTier = getBoardTier(this.architecture.boardLevel);
+    const boardWidth = boardTier.columns * GRID.cellWidth;
+    const boardHeight = boardTier.rows * GRID.cellHeight;
+    const boardCenterX = GRID.left + boardWidth / 2;
+    const boardCenterY = GRID.top + boardHeight / 2;
+    const viewportWidth = camera.width / camera.zoom;
+    const viewportHeight = camera.height / camera.zoom;
+    const width = Math.max(boardWidth + 120, viewportWidth + 4);
+    const height = Math.max(boardHeight + 120, viewportHeight + 4);
+    const x = boardCenterX - width / 2;
+    const y = boardCenterY - height / 2;
+
+    this.cameraBounds.setTo(x, y, width, height);
+    camera.setBounds(x, y, width, height, true);
+  }
+
+  private clampCamera(): void {
+    const camera = this.cameras.main;
+    const viewportWidth = camera.width / camera.zoom;
+    const viewportHeight = camera.height / camera.zoom;
+    const maxX = this.cameraBounds.right - viewportWidth;
+    const maxY = this.cameraBounds.bottom - viewportHeight;
+    camera.scrollX = Phaser.Math.Clamp(
+      camera.scrollX,
+      this.cameraBounds.left,
+      Math.max(this.cameraBounds.left, maxX),
+    );
+    camera.scrollY = Phaser.Math.Clamp(
+      camera.scrollY,
+      this.cameraBounds.top,
+      Math.max(this.cameraBounds.top, maxY),
+    );
   }
 
   private syncCameraMetadata(): void {
@@ -345,17 +430,60 @@ export class ArchitectureScene extends Phaser.Scene {
     host.dataset.cameraZoom = camera.zoom.toFixed(2);
     host.dataset.cameraScrollX = camera.scrollX.toFixed(1);
     host.dataset.cameraScrollY = camera.scrollY.toFixed(1);
+    host.dataset.cameraMinX = this.cameraBounds.left.toFixed(1);
+    host.dataset.cameraMaxX = (
+      this.cameraBounds.right -
+      camera.width / camera.zoom
+    ).toFixed(1);
+    host.dataset.cameraMinY = this.cameraBounds.top.toFixed(1);
+    host.dataset.cameraMaxY = (
+      this.cameraBounds.bottom -
+      camera.height / camera.zoom
+    ).toFixed(1);
     gameEvents.emit(GAME_EVENTS.CAMERA_CHANGED, { zoom: camera.zoom });
   }
 
+  private createVfxTextures(): void {
+    if (this.textures.exists("vfx-dot")) {
+      return;
+    }
+    const dot = this.add.graphics();
+    dot.fillStyle(0xffffff, 1);
+    dot.fillCircle(6, 6, 6);
+    dot.generateTexture("vfx-dot", 12, 12);
+    dot.destroy();
+  }
+
   private drawPastelWorld(): void {
-    const sky = this.add.graphics();
-    sky.fillStyle(0xe9f3ee, 1);
-    sky.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT + 865);
-    sky.fillStyle(COLORS.cream, 1);
-    sky.fillRect(-WIDTH, 145, WIDTH * 3, HEIGHT * 2);
-    sky.lineStyle(2, COLORS.grid, 0.45);
-    sky.lineBetween(-WIDTH, 145, WIDTH * 2, 145);
+    const boardTier = getBoardTier(this.architecture.boardLevel);
+    const width = boardTier.columns * GRID.cellWidth;
+    const height = boardTier.rows * GRID.cellHeight;
+    this.boardGraphics.clear();
+    this.boardGraphics.fillStyle(COLORS.cream, 1);
+    this.boardGraphics.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT * 3);
+    this.boardGraphics.lineStyle(1, 0x29405d, 0.28);
+    for (let x = -WIDTH; x < WIDTH * 2; x += 36) {
+      this.boardGraphics.lineBetween(x, -HEIGHT, x, HEIGHT * 2);
+    }
+    for (let y = -HEIGHT; y < HEIGHT * 2; y += 36) {
+      this.boardGraphics.lineBetween(-WIDTH, y, WIDTH * 2, y);
+    }
+    this.boardGraphics.fillStyle(0x0b1323, 0.46);
+    this.boardGraphics.fillRoundedRect(
+      GRID.left - 32,
+      GRID.top - 32,
+      width + 64,
+      height + 64,
+      22,
+    );
+    this.boardGraphics.lineStyle(4, 0x6f8dad, 0.85);
+    this.boardGraphics.strokeRoundedRect(
+      GRID.left - 24,
+      GRID.top - 24,
+      width + 48,
+      height + 48,
+      18,
+    );
   }
 
   private createGrid(): void {
@@ -598,11 +726,11 @@ export class ArchitectureScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     return this.add
       .text(x, y, text, {
-        color: "#5f616d",
+        color: "#e8f3ff",
         fontFamily: "Trebuchet MS",
-        fontSize: "12px",
+        fontSize: "11px",
         fontStyle: "bold",
-        backgroundColor: "#fffdf8",
+        backgroundColor: "#0c182a",
         padding: { x: 6, y: 3 },
       })
       .setOrigin(0.5);
@@ -630,7 +758,7 @@ export class ArchitectureScene extends Phaser.Scene {
         !pointer.rightButtonDown() &&
         !shiftConnect
       ) {
-        gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, { nodeId });
+        this.playNodeSelection(nodeId);
         this.statusText.setText(
           nodeId === "entry"
             ? "트래픽 입구는 고정 시설입니다"
@@ -676,6 +804,7 @@ export class ArchitectureScene extends Phaser.Scene {
         camera.scrollY =
           this.boardPanGesture.scrollY -
           (pointer.y - this.boardPanGesture.pointerY) / camera.zoom;
+        this.clampCamera();
         this.syncCameraMetadata();
         return;
       }
@@ -780,7 +909,10 @@ export class ArchitectureScene extends Phaser.Scene {
           : true,
       });
 
-      if (resolution.type === "details") {
+      if (resolution.type === "select") {
+        this.playNodeSelection(resolution.nodeId);
+        this.statusText.setText("장비 선택 · 우클릭하면 상세정보가 열립니다");
+      } else if (resolution.type === "details") {
         gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, {
           nodeId: resolution.nodeId,
         });
@@ -857,27 +989,43 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private createStatusBanner(): void {
-    const panel = this.add
-      .rectangle(WIDTH / 2, 102, 430, 44, 0xfffffb, 0.94)
-      .setStrokeStyle(3, COLORS.mint, 0.7)
+    this.statusPanel = this.add
+      .rectangle(0, 0, 420, 34, 0x0b1425, 0.88)
+      .setStrokeStyle(2, 0x7195b9, 0.72)
       .setDepth(20);
     this.statusText = this.add
       .text(
-        WIDTH / 2,
-        102,
-        "포트 제한 · 링크 길이 · 보드 영역을 확인하세요",
+        0,
+        0,
+        "우클릭 상세 · 우클릭 드래그 링크 · 좌클릭 드래그 이동",
         {
-          color: "#676975",
+          color: "#d9eaff",
           fontFamily: "Trebuchet MS",
-          fontSize: "15px",
+          fontSize: "12px",
           fontStyle: "bold",
         },
       )
       .setOrigin(0.5)
       .setDepth(21);
+    this.layoutFixedHud();
+  }
+
+  private layoutFixedHud(): void {
+    if (!this.statusPanel || !this.statusText) {
+      return;
+    }
+    const boardTier = getBoardTier(this.architecture.boardLevel);
+    const boardWidth = boardTier.columns * GRID.cellWidth;
+    const width = Math.min(460, Math.max(260, boardWidth - 80));
+    const x = GRID.left + boardWidth / 2;
+    const y = GRID.top - 50;
+    this.statusPanel.setPosition(x, y).setSize(width, 34);
+    this.statusText.setPosition(x, y);
   }
 
   private applyArchitecture(playBuildEffect: boolean): void {
+    this.drawPastelWorld();
+    this.layoutFixedHud();
     for (const [nodeId, node] of this.nodes) {
       const gridPosition = this.architecture.nodePositions[nodeId];
       node.container.setVisible(Boolean(gridPosition));
@@ -943,10 +1091,8 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private showLinkBudget(): void {
-    const linkTier = getLinkTier(this.architecture.linkLevel);
-    const boardTier = getBoardTier(this.architecture.boardLevel);
     this.statusText.setText(
-      `BOARD LV.${boardTier.level} ${boardTier.columns}×${boardTier.rows} · LINK LV.${linkTier.level} ${getTotalConnectionCells(this.architecture)}/${linkTier.totalCells}칸`,
+      "좌클릭 선택·이동 · 우클릭 상세 · 우클릭 드래그 링크",
     );
   }
 
@@ -1064,7 +1210,7 @@ export class ArchitectureScene extends Phaser.Scene {
       (Boolean(this.activePlacementNode) && !occupied) || isMoveTarget;
     cell.rectangle.setFillStyle(
       occupied ? 0xf0eadc : active ? 0xe5f6ec : COLORS.paper,
-      occupied ? 0.38 : active ? 0.95 : 0.68,
+      occupied ? 0.55 : active ? 0.98 : 0.9,
     );
     cell.rectangle.setStrokeStyle(
       active ? 4 : 2,
@@ -1258,7 +1404,22 @@ export class ArchitectureScene extends Phaser.Scene {
       .setOrigin(0.5);
     container.add([shadow, card, user, method]);
     container.setScale(0);
+    container.postFX.addGlow(color, 1.5, 0, false, 0.1, 6);
     this.requestViews.set(requestId, container);
+    const trail = this.add
+      .particles(0, 0, "vfx-dot", {
+        lifespan: 260,
+        frequency: 32,
+        quantity: 1,
+        speed: { min: 4, max: 16 },
+        scale: { start: 0.5, end: 0 },
+        alpha: { start: 0.72, end: 0 },
+        tint: color,
+        blendMode: Phaser.BlendModes.ADD,
+      })
+      .setDepth(10);
+    trail.startFollow(container);
+    this.requestTrails.set(requestId, trail);
     this.tweens.add({
       targets: container,
       scale: 1,
@@ -1623,6 +1784,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private playBuildPop(target: Phaser.GameObjects.Container): void {
+    this.tweens.killTweensOf(target);
     target.setScale(0.2);
     this.tweens.add({
       targets: target,
@@ -1641,6 +1803,96 @@ export class ArchitectureScene extends Phaser.Scene {
       duration: 500,
       onComplete: () => ring.destroy(),
     });
+    this.playParticleBurst(target.x, target.y, COLORS.mint, 18);
+  }
+
+  private playNodeSelection(nodeId: ArchitectureNodeId): void {
+    const target = this.nodes.get(nodeId)?.container;
+    if (!target) {
+      return;
+    }
+    this.tweens.killTweensOf(target);
+    target.setScale(1);
+    this.tweens.add({
+      targets: target,
+      scale: 1.12,
+      duration: 110,
+      yoyo: true,
+      ease: "Sine.InOut",
+    });
+    const ring = this.add
+      .circle(target.x, target.y, 34, 0x7dd9be, 0.06)
+      .setStrokeStyle(4, 0x9ee8d4, 0.95)
+      .setDepth(9);
+    this.tweens.add({
+      targets: ring,
+      scale: 1.65,
+      alpha: 0,
+      duration: 360,
+      ease: "Quad.Out",
+      onComplete: () => ring.destroy(),
+    });
+    this.playParticleBurst(target.x, target.y, COLORS.blue, 8);
+  }
+
+  private playParticleBurst(
+    x: number,
+    y: number,
+    tint: number,
+    count: number,
+  ): void {
+    const particles = this.add
+      .particles(x, y, "vfx-dot", {
+        emitting: false,
+        lifespan: { min: 260, max: 520 },
+        speed: { min: 55, max: 170 },
+        scale: { start: 0.7, end: 0 },
+        alpha: { start: 0.95, end: 0 },
+        tint,
+        blendMode: Phaser.BlendModes.ADD,
+      })
+      .setDepth(18);
+    particles.explode(count);
+    this.time.delayedCall(650, () => particles.destroy());
+  }
+
+  private playLinkPulse(
+    fromId: ArchitectureNodeId,
+    toId: ArchitectureNodeId,
+  ): void {
+    const from = this.getNodePosition(fromId);
+    const to = this.getNodePosition(toId);
+    const corner = new Phaser.Math.Vector2(to.x, from.y);
+    const flow = getConnectionFlow(fromId, toId);
+    const color =
+      flow === "response"
+        ? COLORS.purple
+        : flow === "data"
+          ? COLORS.yellow
+          : COLORS.blue;
+    const pulse = this.add
+      .circle(from.x, from.y, 7, color, 1)
+      .setStrokeStyle(3, 0xffffff, 0.9)
+      .setDepth(16);
+    pulse.postFX.addGlow(color, 2, 0, false, 0.1, 8);
+    void (async () => {
+      await this.tweenPromise({
+        targets: pulse,
+        x: corner.x,
+        y: corner.y,
+        duration: 180,
+        ease: "Sine.InOut",
+      });
+      await this.tweenPromise({
+        targets: pulse,
+        x: to.x,
+        y: to.y,
+        duration: 180,
+        ease: "Sine.InOut",
+      });
+      this.playParticleBurst(to.x, to.y, color, 12);
+      pulse.destroy();
+    })();
   }
 
   private playConfetti(): void {
@@ -1766,6 +2018,8 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private destroyRequest(requestId: number): void {
+    this.requestTrails.get(requestId)?.destroy();
+    this.requestTrails.delete(requestId);
     this.requestViews.get(requestId)?.destroy(true);
     this.requestViews.delete(requestId);
   }

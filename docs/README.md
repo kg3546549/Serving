@@ -33,6 +33,13 @@
 - 역할별 증강과 레어 확률
 - 긴급·연장·추가점검 패시브
 
+### [게임형 UI와 Phaser VFX 구현 구조](./game-feel-and-vfx-architecture-ko.md)
+
+- 상시 정보와 우클릭 상세정보 분리
+- 제한된 보드 카메라 이동
+- Tween, Particle, Glow 기반 게임 피드백
+- 클릭, 배치, 링크, 패킷 입력·연출 규칙
+
 ### [게임 한눈에 보기](./game-overview-summary-ko.md)
 
 - 현재 게임의 한 줄 정의

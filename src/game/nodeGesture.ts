@@ -14,6 +14,7 @@ interface NodeGestureInput {
 }
 
 export type NodeGestureResult =
+  | { type: "select"; nodeId: ArchitectureNodeId }
   | { type: "details"; nodeId: ArchitectureNodeId }
   | {
       type: "connect";
@@ -38,8 +39,11 @@ export function resolveNodeGesture({
 }: NodeGestureInput): NodeGestureResult {
   const moved = dragged || movementDistance >= 9;
 
-  if (!moved && mode === "move") {
+  if (!moved && mode === "connect") {
     return { type: "details", nodeId: source };
+  }
+  if (!moved && mode === "move") {
+    return { type: "select", nodeId: source };
   }
   if (mode === "connect" && moved && target) {
     return { type: "connect", from: source, to: target };

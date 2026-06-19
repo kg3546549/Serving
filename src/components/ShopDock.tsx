@@ -20,6 +20,7 @@ interface ShopDockProps {
   onRollShop: () => void;
   onBuyXp: () => void;
   onBuyShopItem: (index: number) => void;
+  onInspectItem: (item: ShopItemType) => void;
   onClearConnections: () => void;
 }
 
@@ -35,6 +36,7 @@ export function ShopDock({
   onRollShop,
   onBuyXp,
   onBuyShopItem,
+  onInspectItem,
   onClearConnections,
 }: ShopDockProps): React.JSX.Element {
   const requiredXp = XP_REQUIREMENTS[playerLevel] || 0;
@@ -53,22 +55,14 @@ export function ShopDock({
         </div>
         <div>
           <strong>인프라 상점</strong>
-          <span>인프라를 구매하고 운영 능력을 확장하세요.</span>
+          <span>좌클릭 구매 · 우클릭 상세</span>
         </div>
       </header>
 
       <section className="wave-brief">
         <span>WAVE {String(wave.id).padStart(2, "0")} · {wave.protocol}</span>
         <strong>{wave.name}</strong>
-        <p>{wave.description}</p>
       </section>
-
-      <div className="request-lifecycle" aria-label="요청 처리 순서">
-        <span>REQUEST</span><i>→</i>
-        <span>APP</span><i>→</i>
-        <span>DB</span><i>→</i>
-        <span>RESPONSE</span>
-      </div>
 
       <section className="shop-level-panel" aria-label="플레이어 레벨">
         <div className="shop-level-row">
@@ -122,16 +116,24 @@ export function ShopDock({
               type="button"
               className={`shop-offer ${maintenance ? "shop-offer--passive" : ""}`}
               key={`${item}-${index}`}
-              onClick={() => onBuyShopItem(index)}
-              disabled={disabled || coins < cost}
+              onClick={() => {
+                if (!disabled && coins >= cost) {
+                  onBuyShopItem(index);
+                }
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onInspectItem(item);
+              }}
+              aria-disabled={disabled || coins < cost}
+              title="좌클릭 구매 · 우클릭 상세"
             >
               <span className="shop-offer-icon">
                 <ResourceIcon type={item} />
               </span>
               <span className="shop-offer-copy">
-                <small>{category}{tier ? ` · TIER ${tier}` : ""}</small>
+                <small>{tier ? `TIER ${tier}` : category}</small>
                 <strong>{spec.name}</strong>
-                <span>{spec.description}</span>
               </span>
               <span className="shop-offer-price">
                 <small>{maintenance ? "PASSIVE" : "BUY"}</small>
@@ -143,7 +145,6 @@ export function ShopDock({
       </div>
 
       <footer className="shop-footer">
-        <p>동일 장비 3개를 모으면 성급이 오르고 증강 선택지가 열립니다.</p>
         <button
           type="button"
           className="route-reset-button"

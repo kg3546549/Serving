@@ -24,7 +24,7 @@ interface InventoryDockProps {
     instanceId?: string,
   ) => void;
   onCancelPlacement: () => void;
-  onSellNode: (instanceId: string) => void;
+  onInspectItem: (item: NodeInstance) => void;
 }
 
 interface InventoryCardProps {
@@ -40,7 +40,7 @@ interface InventoryCardProps {
     instanceId: string,
   ) => void;
   onCancelPlacement: () => void;
-  onSellNode: (instanceId: string) => void;
+  onInspectItem: (item: NodeInstance) => void;
 }
 
 function InventoryCard({
@@ -51,7 +51,7 @@ function InventoryCard({
   onSelectNode,
   onDropNode,
   onCancelPlacement,
-  onSellNode,
+  onInspectItem,
 }: InventoryCardProps): React.JSX.Element {
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
@@ -99,21 +99,19 @@ function InventoryCard({
       className={`inventory-card ${deployedRole ? "deployed" : ""} ${
         deployable ? "" : "passive"
       }`}
-      disabled={disabled && deployable}
+      aria-disabled={disabled && deployable}
       onClick={() => {
         if (suppressClickRef.current) {
           suppressClickRef.current = false;
           return;
         }
-        if (preferredRole) {
+        if (preferredRole && !disabled) {
           onSelectNode(preferredRole, item.id);
         }
       }}
       onContextMenu={(event) => {
         event.preventDefault();
-        if (!disabled) {
-          onSellNode(item.id);
-        }
+        onInspectItem(item);
       }}
       onPointerDown={(event) => {
         if (event.button !== 0 || disabled || !preferredRole) {
@@ -129,8 +127,8 @@ function InventoryCard({
       onPointerCancel={onCancelPlacement}
       title={
         deployable
-          ? `${spec.name} 배치 · 우클릭 판매`
-          : `${spec.name} 패시브 적용 · 우클릭 판매`
+          ? `${spec.name} 배치 · 우클릭 상세`
+          : `${spec.name} 패시브 적용 · 우클릭 상세`
       }
     >
       <span className="inventory-card-state">
@@ -141,7 +139,6 @@ function InventoryCard({
         <ResourceIcon type={item.type} />
       </span>
       <span className="inventory-card-copy">
-        <small>{spec.category.toUpperCase()}</small>
         <strong>{spec.name}</strong>
         <em>
           {"★".repeat(item.starLevel)}
@@ -190,7 +187,7 @@ export function InventoryDock({
   onSelectNode,
   onDropNode,
   onCancelPlacement,
-  onSellNode,
+  onInspectItem,
 }: InventoryDockProps): React.JSX.Element {
   const ownedCount = inventory.filter(Boolean).length;
   const deployedCount = Object.values(architecture.boardSlots).filter(Boolean)
@@ -232,7 +229,7 @@ export function InventoryDock({
               onSelectNode={onSelectNode}
               onDropNode={onDropNode}
               onCancelPlacement={onCancelPlacement}
-              onSellNode={onSellNode}
+              onInspectItem={onInspectItem}
             />
           ) : (
             <div className="inventory-empty-slot" key={`empty-${index}`}>

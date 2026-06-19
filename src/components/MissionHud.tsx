@@ -45,9 +45,8 @@ export function MissionHud({
         <div className="mission-copy">
           <strong>{stageName}</strong>
           <div className="mission-description">
-            <span>HTTPS 엔드포인트를 제공하는 기본 API 아키텍처</span>
             <button type="button" onClick={onHelp}>
-              도움말
+              ?
             </button>
           </div>
         </div>

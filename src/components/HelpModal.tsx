@@ -33,12 +33,12 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <div>
             <span className="reaction-icon open">＋</span>
             <strong>구매·배치</strong>
-            <p>상점에서 구매한 장비를 하단 보유 장비 바에서 드래그합니다.</p>
+            <p>상점 좌클릭으로 구매하고 하단 장비를 클릭하거나 드래그합니다.</p>
           </div>
           <div>
             <span className="reaction-icon blocked">≋</span>
-            <strong>포트 제한</strong>
-            <p>App은 요청·응답 2개, LB는 분기용 트래픽 4개를 연결합니다.</p>
+            <strong>상세정보</strong>
+            <p>상점, 보유 장비, 보드 장비를 우클릭하면 상세정보가 열립니다.</p>
           </div>
           <div>
             <span className="reaction-icon closed">!</span>
@@ -61,7 +61,7 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <p>
             링크 길이는 두 장비 사이의 가로·세로 칸 수로 계산합니다.
             LINK LEVEL은 링크 하나의 최대 길이와 전체 사용 가능한 칸 수를
-            늘립니다. 긴 경로나 분산 구조를 만들기 전에 확장해야 합니다.
+            늘립니다. 보드 장비를 우클릭 드래그해 링크를 연결합니다.
           </p>
         </details>
 
@@ -97,7 +97,8 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <p>
             마우스 휠로 커서 위치를 중심으로 확대·축소합니다. 장비가 없는
             보드를 좌클릭 드래그하거나 휠 버튼으로 드래그하면 화면을
-            이동합니다. R 키를 누르면 기본 배율과 위치로 돌아갑니다.
+            이동합니다. 카메라는 활성 보드 주변을 벗어날 수 없으며 R 키를
+            누르면 보드 전체가 보이도록 다시 맞춥니다.
           </p>
         </details>
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveNodeGesture } from "./nodeGesture";
 
 describe("resolveNodeGesture", () => {
-  it("opens details after a short left click", () => {
+  it("selects a node after a short left click", () => {
     expect(
       resolveNodeGesture({
         mode: "move",
@@ -12,7 +12,20 @@ describe("resolveNodeGesture", () => {
         position: { column: 1, row: 0 },
         positionOccupied: false,
       }),
-    ).toEqual({ type: "details", nodeId: "entry" });
+    ).toEqual({ type: "select", nodeId: "entry" });
+  });
+
+  it("opens details after a short right click", () => {
+    expect(
+      resolveNodeGesture({
+        mode: "connect",
+        dragged: false,
+        source: "serverA",
+        target: null,
+        position: { column: 3, row: 2 },
+        positionOccupied: true,
+      }),
+    ).toEqual({ type: "details", nodeId: "serverA" });
   });
 
   it("connects nodes when a right drag ends on another device", () => {

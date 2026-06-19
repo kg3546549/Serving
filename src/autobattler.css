@@ -556,7 +556,7 @@
   text-align: left;
 }
 
-.inventory-card:hover:not(:disabled) {
+.inventory-card:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: #78b9ee;
   box-shadow: 0 6px 15px rgba(44, 114, 184, 0.12);
   transform: translateY(-1px);
@@ -884,7 +884,7 @@
   text-align: left;
 }
 
-.shop-offer:hover:not(:disabled) {
+.shop-offer:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: #78b9ee;
   background: #f7fbff;
   transform: translateY(-1px);
@@ -893,6 +893,12 @@
 .shop-offer:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.shop-offer[aria-disabled="true"],
+.inventory-card[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .shop-offer--passive {
@@ -1202,5 +1208,738 @@
   .choice-overlay * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+}
+
+/* Compact game HUD */
+.infra-game {
+  --game-frame: #0b1425;
+  --game-panel: #17263d;
+  --game-panel-light: #213653;
+  --game-line: #58749a;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 8px;
+  padding: 8px;
+  background:
+    radial-gradient(circle at 38% 35%, rgba(45, 111, 154, 0.2), transparent 35%),
+    linear-gradient(145deg, #0b1322, #16243a 55%, #0c1728);
+}
+
+.infra-main {
+  grid-template-rows: 64px minmax(280px, 1fr) 48px 104px;
+  gap: 8px;
+}
+
+.infra-game .mission-hud {
+  height: 64px;
+  grid-template-columns: minmax(270px, 1fr) 190px minmax(300px, auto);
+  gap: 8px;
+}
+
+.mission-stage,
+.mission-wave,
+.infra-game .mini-resource,
+.board-meta,
+.shop-dock,
+.infra-game .auto-wave-bar,
+.inventory-dock {
+  border: 2px solid var(--game-line);
+  background: linear-gradient(180deg, var(--game-panel-light), var(--game-panel));
+  box-shadow:
+    0 4px 0 var(--game-frame),
+    inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.mission-stage,
+.mission-wave,
+.infra-game .mini-resource {
+  border-radius: 8px;
+}
+
+.infra-game .stage-chip {
+  width: 70px;
+  flex-basis: 70px;
+  border-radius: 6px 0 0 6px;
+  background: linear-gradient(145deg, #8b63dd, #56349d);
+}
+
+.infra-game .stage-chip::after {
+  right: -10px;
+  width: 20px;
+}
+
+.infra-game .stage-chip small {
+  font-size: 9px;
+}
+
+.infra-game .stage-chip span {
+  font-size: 27px;
+}
+
+.mission-copy {
+  gap: 0;
+  padding: 0 14px 0 22px;
+}
+
+.mission-copy strong {
+  color: #f4f8ff;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.mission-description {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.mission-description button {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  padding: 0;
+  border-color: #6e88aa;
+  border-radius: 50%;
+  background: #102039;
+  color: #d7e8ff;
+}
+
+.mission-wave {
+  gap: 7px;
+  padding: 10px 13px;
+}
+
+.mission-wave > span {
+  color: #8bd9ff;
+  font-size: 11px;
+}
+
+.infra-game .wave-progress {
+  height: 6px;
+  background: #0b1425;
+}
+
+.infra-game .mini-resources {
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  gap: 6px;
+}
+
+.infra-game .mini-resource {
+  gap: 1px;
+  padding: 7px 10px;
+}
+
+.infra-game .mini-resource small {
+  color: #9fb1c9;
+  font-size: 8px;
+}
+
+.infra-game .mini-resource strong {
+  color: #f4f8ff;
+  font-size: 15px;
+}
+
+.board-stage {
+  border: 3px solid #5d789d;
+  border-radius: 10px;
+  background: #111e31;
+  box-shadow:
+    0 6px 0 #070d18,
+    0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.board-meta--overlay {
+  position: absolute;
+  z-index: 25;
+  top: 9px;
+  left: 10px;
+  width: auto;
+  min-height: 30px;
+  justify-self: auto;
+  gap: 9px;
+  padding: 0 11px;
+  border-radius: 6px;
+  color: #dcecff;
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.board-meta--overlay span {
+  color: #a9bdd5;
+  font-size: 9px;
+}
+
+.board-meta--overlay b {
+  color: #7fdcff;
+  font-size: 10px;
+}
+
+.infra-game .board-camera-help {
+  right: 12px;
+  bottom: 10px;
+  padding: 5px 8px;
+  border: 2px solid #567293;
+  border-radius: 7px;
+  background: rgba(12, 24, 42, 0.92);
+  box-shadow: 0 3px 0 #07101d;
+  color: #dcecff;
+}
+
+.infra-game .board-camera-help button {
+  width: 22px;
+  height: 22px;
+  border-color: #58769a;
+  border-radius: 5px;
+  background: #203653;
+  color: #eef7ff;
+}
+
+.infra-game .auto-wave-bar {
+  min-height: 48px;
+  grid-template-columns: 34px 150px minmax(100px, 1fr) auto;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 7px;
+}
+
+.wave-control-mark {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #67c5ff;
+  border-radius: 4px;
+  background: #0e69a6;
+  box-shadow: 0 0 14px rgba(35, 165, 240, 0.35);
+}
+
+.infra-game .auto-wave-copy span {
+  color: #e6f1ff;
+  font-size: 10px;
+}
+
+.infra-game .auto-wave-copy strong {
+  color: #91a7c2;
+  font-size: 9px;
+}
+
+.infra-game .auto-wave-track {
+  height: 8px;
+  border: 1px solid #4c6586;
+  background: #091322;
+}
+
+.inventory-dock {
+  grid-template-columns: 112px 160px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.inventory-heading {
+  gap: 1px;
+  padding: 0 8px;
+  border-color: #405a7b;
+}
+
+.inventory-heading strong {
+  color: #f0f6ff;
+  font-size: 15px;
+}
+
+.inventory-heading span {
+  color: #76cfff;
+  font-size: 7px;
+}
+
+.inventory-heading small {
+  color: #8fa4bd;
+  font-size: 8px;
+}
+
+.inventory-capacity {
+  gap: 5px;
+}
+
+.inventory-capacity article {
+  gap: 0;
+  padding: 5px 8px;
+  border-color: #4e6b8f;
+  border-radius: 5px;
+  background: #0f1c30;
+}
+
+.inventory-capacity span,
+.inventory-capacity small {
+  color: #89a4c2;
+  font-size: 7px;
+}
+
+.inventory-capacity strong {
+  color: #ecf5ff;
+  font-size: 10px;
+}
+
+.inventory-slots {
+  gap: 6px;
+}
+
+.inventory-card,
+.inventory-empty-slot {
+  width: 78px;
+  min-width: 78px;
+  height: 84px;
+  border: 2px solid #526d8e;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f8fbff, #dfe8f2);
+  box-shadow: 0 3px 0 #091321;
+}
+
+.inventory-card {
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 5px;
+  padding: 21px 5px 5px;
+}
+
+.inventory-card.deployed {
+  border-color: #55d4b4;
+  box-shadow:
+    0 3px 0 #091321,
+    0 0 14px rgba(59, 215, 177, 0.3);
+}
+
+.inventory-card-state {
+  top: 4px;
+  right: 4px;
+  padding: 2px 4px;
+  font-size: 6px;
+}
+
+.inventory-card-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.inventory-card-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.inventory-card-copy strong {
+  font-size: 9px;
+  line-height: 1.15;
+}
+
+.inventory-card-copy em {
+  font-size: 7px;
+}
+
+.inventory-empty-slot {
+  gap: 2px;
+  border-color: #49627f;
+  background: rgba(10, 21, 37, 0.45);
+  color: #6f89a9;
+}
+
+.inventory-empty-slot span {
+  font-size: 17px;
+}
+
+.shop-dock {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 9px;
+  color: #edf5ff;
+}
+
+.shop-header {
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.shop-title-icon {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #6682a6;
+  border-radius: 6px;
+  background: #0d1a2d;
+  color: #85d6ff;
+}
+
+.shop-header strong {
+  color: #f3f8ff;
+  font-size: 15px;
+}
+
+.shop-header span {
+  color: #91a6bf;
+  font-size: 8px;
+}
+
+.infra-game .wave-brief {
+  gap: 1px;
+  padding: 7px 9px;
+  border: 1px solid #785cb8;
+  border-radius: 6px;
+  background: #231d40;
+}
+
+.infra-game .wave-brief > span {
+  color: #c7adff;
+  font-size: 8px;
+}
+
+.infra-game .wave-brief > strong {
+  color: #f5f0ff;
+  font-size: 12px;
+}
+
+.shop-level-panel {
+  gap: 5px;
+  padding: 7px;
+  border-color: #4d6d91;
+  border-radius: 6px;
+  background: #0f1d31;
+}
+
+.shop-level-row small,
+.shop-level-row > span {
+  color: #8fb3d6;
+}
+
+.shop-level-row strong {
+  color: #f2f7ff;
+  font-size: 13px;
+}
+
+.shop-level-actions {
+  gap: 5px;
+}
+
+.shop-level-actions button {
+  padding: 6px;
+  border: 1px solid #58789e;
+  border-radius: 5px;
+  background: #1d3452;
+  color: #dcecff;
+  font-size: 8px;
+  box-shadow: 0 2px 0 #07101c;
+}
+
+.maintenance-summary {
+  color: #94aac3;
+  font-size: 7px;
+}
+
+.maintenance-summary strong {
+  color: #c8b3ff;
+}
+
+.shop-offers {
+  gap: 6px;
+  padding: 1px 2px 3px 0;
+}
+
+.shop-offer {
+  min-height: 58px;
+  grid-template-columns: 38px minmax(0, 1fr) 34px;
+  gap: 7px;
+  padding: 6px;
+  border: 2px solid #587394;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f7fbff, #e2eaf4);
+  box-shadow: 0 3px 0 #081321;
+}
+
+.shop-offer:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: #6fd1ff;
+  background: #fff;
+  box-shadow:
+    0 3px 0 #081321,
+    0 0 15px rgba(72, 192, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.shop-offer--passive {
+  border-color: #8669bd;
+  background: linear-gradient(180deg, #faf7ff, #e9e1f6);
+}
+
+.shop-offer-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.shop-offer-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.shop-offer-copy {
+  gap: 1px;
+}
+
+.shop-offer-copy small {
+  font-size: 7px;
+}
+
+.shop-offer-copy strong {
+  color: #1e314b;
+  font-size: 11px;
+}
+
+.shop-offer-price small {
+  font-size: 6px;
+}
+
+.shop-offer-price strong {
+  font-size: 14px;
+}
+
+.shop-footer {
+  padding-top: 6px;
+  border-color: #405b7d;
+}
+
+.route-reset-button {
+  padding: 7px;
+  border: 1px solid #607da0;
+  border-radius: 5px;
+  background: #0e1b2e;
+  color: #cbdcf0;
+  box-shadow: 0 2px 0 #060d18;
+}
+
+.infra-game .node-details {
+  border: 2px solid #6786aa;
+  border-radius: 8px;
+  background: rgba(13, 25, 43, 0.97);
+  color: #edf5ff;
+  box-shadow: 0 6px 0 #060d18;
+}
+
+.infra-game .node-details p,
+.infra-game .node-details li,
+.infra-game .node-details small {
+  color: #9fb4cc;
+}
+
+.resource-overlay {
+  background: rgba(4, 10, 20, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.resource-details-popup {
+  position: relative;
+  display: grid;
+  width: min(420px, calc(100vw - 32px));
+  gap: 10px;
+  padding: 24px;
+  border: 3px solid #6382a8;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #1e3452, #101c30);
+  box-shadow:
+    0 8px 0 #070d18,
+    0 24px 60px rgba(0, 0, 0, 0.45);
+  color: #f2f7ff;
+}
+
+.resource-details-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #6483a8;
+  border-radius: 5px;
+  background: #0b1728;
+  color: #eaf4ff;
+  cursor: pointer;
+}
+
+.resource-details-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 2px solid #72cfff;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #167fd2, #0b4f96);
+  box-shadow: 0 0 22px rgba(60, 183, 255, 0.28);
+}
+
+.resource-details-icon svg {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+
+.resource-details-kicker {
+  color: #83d7ff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.resource-details-popup h2,
+.resource-details-popup p {
+  margin: 0;
+}
+
+.resource-details-popup h2 {
+  font-size: 22px;
+}
+
+.resource-details-popup > p {
+  color: #adbed2;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.resource-details-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.resource-details-stats span,
+.resource-augment {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid #4f6d91;
+  border-radius: 6px;
+  background: #0c192b;
+}
+
+.resource-details-stats small,
+.resource-augment small {
+  color: #7895b7;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.resource-details-stats strong,
+.resource-augment strong {
+  color: #f0f7ff;
+  font-size: 11px;
+}
+
+.resource-details-popup .resource-details-tip {
+  padding: 8px 10px;
+  border-left: 3px solid #63ccff;
+  background: #142942;
+  color: #b9cce1;
+  font-size: 10px;
+}
+
+.resource-sell-button {
+  padding: 10px;
+  border: 1px solid #d87a87;
+  border-radius: 6px;
+  background: #4a1f2b;
+  color: #ffdfe3;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.soft-overlay,
+.choice-overlay {
+  background: rgba(4, 10, 20, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.help-card,
+.result-card,
+.choice-modal {
+  border: 3px solid #6382a8;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #1e3452, #101c30);
+  box-shadow:
+    0 8px 0 #070d18,
+    0 24px 60px rgba(0, 0, 0, 0.45);
+  color: #f2f7ff;
+}
+
+.help-card h2,
+.result-card h2,
+.choice-modal h2 {
+  color: #f2f7ff;
+}
+
+.help-lead,
+.result-caption,
+.choice-modal > p,
+.learn-more p,
+.reaction-guide p {
+  color: #a9bdd4;
+}
+
+.result-status-icon,
+.help-mascot {
+  border: 2px solid #6fd1ff;
+  border-radius: 8px;
+  background: #0e69a6;
+  box-shadow:
+    0 4px 0 #07101d,
+    0 0 20px rgba(71, 194, 255, 0.28);
+  color: #fff;
+}
+
+.result-metrics > div,
+.hp-damage-report,
+.unlock-callout,
+.reaction-guide > div,
+.learn-more,
+.choice-card {
+  border: 1px solid #4f6d91;
+  border-radius: 7px;
+  background: #0c192b;
+  color: #eaf4ff;
+}
+
+.result-metrics strong,
+.choice-card strong {
+  color: #eff7ff;
+}
+
+.result-metrics span,
+.choice-card span {
+  color: #8fa8c4;
+}
+
+.soft-primary {
+  border: 1px solid #78d9ff;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #168bd2, #0b639f);
+  box-shadow: 0 4px 0 #062f50;
+  color: #fff;
+}
+
+.choice-card:hover:not(:disabled) {
+  border-color: #71ceff;
+  background: #152c47;
+  box-shadow: 0 0 18px rgba(68, 190, 255, 0.2);
+}
+
+@media (max-width: 1120px) {
+  .infra-game {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+
+  .infra-game .mission-hud {
+    grid-template-columns: minmax(220px, 1fr) 165px minmax(240px, auto);
+  }
+
+  .inventory-heading {
+    display: grid;
+  }
+
+  .inventory-dock {
+    grid-template-columns: 100px 145px minmax(0, 1fr);
   }
 }
