@@ -50,6 +50,7 @@ Source-Commit: <full-commit-sha>
 - [`76d61d65a31548d418f878e00d1a81f97c11a454`](./76d61d65a31548d418f878e00d1a81f97c11a454.md) — 서비스 도메인 캠페인 전환과 Stage 1 구현
 - [`a88de50eb225069a9026a8ca133c8796721910b5`](./a88de50eb225069a9026a8ca133c8796721910b5.md) — 장비 포트와 링크 용량 제약
 - [`2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849`](./2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849.md) — 하단 보유 장비 Dock과 상점 가독성 개선
+- [`afd5980ee157a595abd2e71e9c6b9df375c4b4b9`](./afd5980ee157a595abd2e71e9c6b9df375c4b4b9.md) — 상단 요청·응답 I/O와 유료 보드 확장
 
 ## 이력 조회
 
