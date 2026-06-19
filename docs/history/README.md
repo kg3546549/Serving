@@ -53,6 +53,7 @@ Source-Commit: <full-commit-sha>
 - [`afd5980ee157a595abd2e71e9c6b9df375c4b4b9`](./afd5980ee157a595abd2e71e9c6b9df375c4b4b9.md) — 상단 요청·응답 I/O와 유료 보드 확장
 - [`59e2ab224c0d0fa0138e28462ab5e499ccda17df`](./59e2ab224c0d0fa0138e28462ab5e499ccda17df.md) — 보드 자유 확대·축소와 화면 이동
 - [`26aa2e67e0b2550f72dd4fa034d70ac62005a761`](./26aa2e67e0b2550f72dd4fa034d70ac62005a761.md) — 밝은 보드 중심 UI 복구와 오토배틀러 성장 시스템
+- [`01bf8406aa513f00808d6c85245b8ecd25893f8a`](./01bf8406aa513f00808d6c85245b8ecd25893f8a.md) — compact 게임 HUD, 우클릭 상세, Phaser VFX와 카메라 경계
 
 ## 이력 조회
 
