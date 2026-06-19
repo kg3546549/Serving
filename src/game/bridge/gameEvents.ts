@@ -19,8 +19,16 @@ export const GAME_EVENTS = {
   CONNECTION_REQUEST: "connection:request",
   NODE_MOVE_REQUEST: "node:move-request",
   NODE_DETAILS_REQUEST: "node:details-request",
+  CAMERA_COMMAND: "camera:command",
+  CAMERA_CHANGED: "camera:changed",
   RESET_WORLD: "world:reset",
 } as const;
+
+export type CameraCommand = "zoomIn" | "zoomOut" | "reset";
+
+export interface CameraChangedPayload {
+  zoom: number;
+}
 
 export interface WaveCompletePayload {
   result: WaveSimulationResult;
@@ -36,6 +44,7 @@ export interface ArchitecturePayload {
 
 export interface InventorySelectPayload {
   nodeId: ArchitectureNodeId;
+  instanceId?: string;
 }
 
 export interface InventoryDropPayload extends InventorySelectPayload {
@@ -46,6 +55,7 @@ export interface InventoryDropPayload extends InventorySelectPayload {
 export interface NodePlacementPayload {
   nodeId: ArchitectureNodeId;
   position: GridPosition;
+  instanceId?: string;
 }
 
 export interface ConnectionRequestPayload {

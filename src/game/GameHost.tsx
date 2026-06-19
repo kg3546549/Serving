@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import type {
   ArchitectureNodeId,
@@ -16,6 +16,8 @@ import {
   type ConnectionRequestPayload,
   type NodeDetailsRequestPayload,
   type NodeMoveRequestPayload,
+  type CameraChangedPayload,
+  type CameraCommand,
 } from "./bridge/gameEvents";
 
 interface GameHostProps {
@@ -25,6 +27,7 @@ interface GameHostProps {
   onNodePlacement: (
     nodeId: ArchitectureNodeId,
     position: GridPosition,
+    instanceId?: string,
   ) => void;
   onConnectionRequest: (
     from: ArchitectureNodeId,
@@ -47,6 +50,7 @@ export function GameHost({
   onNodeDetails,
 }: GameHostProps): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [cameraZoom, setCameraZoom] = useState(1);
 
   useEffect(() => {
     if (!hostRef.current) {
@@ -67,7 +71,8 @@ export function GameHost({
     );
     const unsubscribePlacement = gameEvents.on<NodePlacementPayload>(
       GAME_EVENTS.NODE_PLACEMENT_REQUEST,
-      ({ nodeId, position }) => onNodePlacement(nodeId, position),
+      ({ nodeId, position, instanceId }) =>
+        onNodePlacement(nodeId, position, instanceId),
     );
     const unsubscribeConnection = gameEvents.on<ConnectionRequestPayload>(
       GAME_EVENTS.CONNECTION_REQUEST,
@@ -81,6 +86,10 @@ export function GameHost({
       GAME_EVENTS.NODE_DETAILS_REQUEST,
       ({ nodeId }) => onNodeDetails(nodeId),
     );
+    const unsubscribeCamera = gameEvents.on<CameraChangedPayload>(
+      GAME_EVENTS.CAMERA_CHANGED,
+      ({ zoom }) => setCameraZoom(zoom),
+    );
 
     const game = new Phaser.Game({
       type: Phaser.WEBGL,
@@ -93,7 +102,7 @@ export function GameHost({
       antialias: true,
       transparent: false,
       scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       render: {
@@ -110,6 +119,7 @@ export function GameHost({
       unsubscribeConnection();
       unsubscribeMove();
       unsubscribeDetails();
+      unsubscribeCamera();
       game.destroy(true);
     };
   }, [
@@ -129,8 +139,44 @@ export function GameHost({
         className="game-canvas"
         aria-label="아키텍처 디펜스 게임 월드"
       />
-      <div className="board-camera-help" aria-label="보드 화면 조작법">
-        휠 확대·축소 · 빈 보드 드래그 이동 · R 화면 초기화
+      <div className="board-camera-help" aria-label="보드 화면 조작">
+        <button
+          type="button"
+          onClick={() =>
+            gameEvents.emit<CameraCommand>(
+              GAME_EVENTS.CAMERA_COMMAND,
+              "reset",
+            )
+          }
+          aria-label="보드 화면 초기화"
+        >
+          ⛶
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            gameEvents.emit<CameraCommand>(
+              GAME_EVENTS.CAMERA_COMMAND,
+              "zoomOut",
+            )
+          }
+          aria-label="보드 축소"
+        >
+          −
+        </button>
+        <span>{Math.round(cameraZoom * 100)}%</span>
+        <button
+          type="button"
+          onClick={() =>
+            gameEvents.emit<CameraCommand>(
+              GAME_EVENTS.CAMERA_COMMAND,
+              "zoomIn",
+            )
+          }
+          aria-label="보드 확대"
+        >
+          ＋
+        </button>
       </div>
     </>
   );

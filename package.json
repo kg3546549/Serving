@@ -13,6 +13,7 @@
     "phaser": "3.90.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "uuid": "^14.0.0",
     "zustand": "5.0.14"
   },
   "devDependencies": {

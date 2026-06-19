@@ -68,8 +68,27 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         <details className="learn-more">
           <summary>BOARD LEVEL은 무엇인가요?</summary>
           <p>
-            처음에는 7×4 보드만 사용할 수 있습니다. 하단 보유 장비 영역의
-            BOARD SIZE를 확장하면 10×5, 최종 13×6 영역이 열립니다.
+            처음에는 7×4 보드만 사용할 수 있습니다. 플레이어 레벨이 오르면
+            BOARD SIZE 또는 LINK CAPACITY 중 하나를 선택해 확장하며, 보드는
+            10×5, 최종 13×6 영역까지 열립니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
+          <summary>동일 장비 3개를 모으면?</summary>
+          <p>
+            같은 종류와 같은 성급의 장비 3개는 상위 성급 1개로 자동
+            합성됩니다. 합성 직후 장비 역할에 맞는 증강 3개 중 하나를
+            선택합니다. 2성에서는 레어 증강 확률이 5%, 3성에서는 15%입니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
+          <summary>점검 아이템은 어떻게 쓰나요?</summary>
+          <p>
+            긴급점검은 진행 중인 서비스를 멈추고 15초 점검시간을 엽니다.
+            연장점검은 정기점검 시간을 10초 늘리고, 추가점검은 긴급점검
+            횟수와 정기점검 시간을 모두 늘립니다.
           </p>
         </details>
 

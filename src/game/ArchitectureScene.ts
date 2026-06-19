@@ -25,6 +25,7 @@ import {
   GAME_EVENTS,
   gameEvents,
   type ArchitecturePayload,
+  type CameraCommand,
   type InventoryDropPayload,
   type InventorySelectPayload,
 } from "./bridge/gameEvents";
@@ -110,6 +111,12 @@ export class ArchitectureScene extends Phaser.Scene {
       exit: { ...DEFAULT_NODE_POSITIONS.exit! },
     },
     connections: [],
+    boardSlots: {
+      loadBalancer: null,
+      serverA: null,
+      serverB: null,
+      database: null,
+    },
   };
   private nodes = new Map<ArchitectureNodeId, NodeView>();
   private gridCells: GridCellView[] = [];
@@ -118,6 +125,7 @@ export class ArchitectureScene extends Phaser.Scene {
   private previewGraphics!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
   private activePlacementNode: ArchitectureNodeId | null = null;
+  private activePlacementInstanceId: string | null = null;
   private nodeGesture: NodeGesture | null = null;
   private boardPanGesture: BoardPanGesture | null = null;
   private isSpacePressed = false;
@@ -150,7 +158,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.bindPointerDrawing();
     this.bindBoardCameraControls();
     this.applyArchitecture(false);
-    this.syncCameraMetadata();
+    this.fitBoardView(false);
 
     gameEvents.emit(GAME_EVENTS.SCENE_READY, undefined);
     this.cameras.main.fadeIn(300, 255, 248, 232);
@@ -165,6 +173,8 @@ export class ArchitectureScene extends Phaser.Scene {
       gameEvents.on<ArchitecturePayload>(
         GAME_EVENTS.CONFIGURE_ARCHITECTURE,
         ({ architecture }) => {
+          const boardLevelChanged =
+            architecture.boardLevel !== this.architecture.boardLevel;
           const placedNewNode = (
             Object.keys(architecture.nodePositions) as ArchitectureNodeId[]
           ).some(
@@ -174,12 +184,15 @@ export class ArchitectureScene extends Phaser.Scene {
           );
           this.architecture = architecture;
           this.applyArchitecture(placedNewNode);
+          if (boardLevelChanged) {
+            this.fitBoardView(false);
+          }
         },
       ),
       gameEvents.on<void>(GAME_EVENTS.RESET_WORLD, () => this.resetWorld()),
       gameEvents.on<InventorySelectPayload>(
         GAME_EVENTS.INVENTORY_SELECT,
-        ({ nodeId }) => this.beginPlacement(nodeId),
+        ({ nodeId, instanceId }) => this.beginPlacement(nodeId, instanceId),
       ),
       gameEvents.on<void>(GAME_EVENTS.BUILD_CANCEL, () =>
         this.cancelPlacement(),
@@ -188,6 +201,16 @@ export class ArchitectureScene extends Phaser.Scene {
         GAME_EVENTS.INVENTORY_DROP,
         (payload) =>
           this.handleInventoryDrop(payload),
+      ),
+      gameEvents.on<CameraCommand>(
+        GAME_EVENTS.CAMERA_COMMAND,
+        (command) => {
+          if (command === "reset") {
+            this.resetBoardView();
+          } else {
+            this.adjustBoardZoom(command === "zoomIn" ? 0.1 : -0.1);
+          }
+        },
       ),
     );
 
@@ -275,13 +298,42 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private resetBoardView(): void {
+    this.fitBoardView();
+  }
+
+  private fitBoardView(showStatus = true): void {
     const camera = this.cameras.main;
-    camera.setZoom(1);
-    camera.setScroll(0, 0);
+    const boardTier = getBoardTier(this.architecture.boardLevel);
+    const zoomByLevel = {
+      1: 1.05,
+      2: 0.88,
+      3: 0.72,
+    } as const;
+    const boardCenterX =
+      GRID.left + (boardTier.columns * GRID.cellWidth) / 2;
+    const boardCenterY =
+      GRID.top + (boardTier.rows * GRID.cellHeight) / 2;
+
+    camera.setZoom(zoomByLevel[boardTier.level]);
+    camera.centerOn(boardCenterX, boardCenterY);
     this.boardPanGesture = null;
     this.input.setDefaultCursor("default");
     this.syncCameraMetadata();
-    this.statusText.setText("보드 뷰를 초기화했습니다");
+    if (showStatus) {
+      this.statusText.setText("활성 보드 영역에 화면을 맞췄습니다");
+    }
+  }
+
+  private adjustBoardZoom(delta: number): void {
+    const camera = this.cameras.main;
+    camera.setZoom(
+      Phaser.Math.Clamp(
+        Number((camera.zoom + delta).toFixed(2)),
+        BOARD_ZOOM.min,
+        BOARD_ZOOM.max,
+      ),
+    );
+    this.syncCameraMetadata();
   }
 
   private syncCameraMetadata(): void {
@@ -293,16 +345,17 @@ export class ArchitectureScene extends Phaser.Scene {
     host.dataset.cameraZoom = camera.zoom.toFixed(2);
     host.dataset.cameraScrollX = camera.scrollX.toFixed(1);
     host.dataset.cameraScrollY = camera.scrollY.toFixed(1);
+    gameEvents.emit(GAME_EVENTS.CAMERA_CHANGED, { zoom: camera.zoom });
   }
 
   private drawPastelWorld(): void {
     const sky = this.add.graphics();
     sky.fillStyle(0xe9f3ee, 1);
-    sky.fillRect(0, 0, WIDTH, 145);
+    sky.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT + 865);
     sky.fillStyle(COLORS.cream, 1);
-    sky.fillRect(0, 145, WIDTH, HEIGHT - 145);
+    sky.fillRect(-WIDTH, 145, WIDTH * 3, HEIGHT * 2);
     sky.lineStyle(2, COLORS.grid, 0.45);
-    sky.lineBetween(0, 145, WIDTH, 145);
+    sky.lineBetween(-WIDTH, 145, WIDTH * 2, 145);
   }
 
   private createGrid(): void {
@@ -341,7 +394,7 @@ export class ArchitectureScene extends Phaser.Scene {
             this.activePlacementNode &&
             !this.isOccupied(position)
           ) {
-            this.requestPlacement(this.activePlacementNode, position, true);
+            this.requestPlacement(this.activePlacementNode, position, true, this.activePlacementInstanceId ?? undefined);
           }
         });
         this.gridCells.push({ position, center, rectangle });
@@ -930,17 +983,19 @@ export class ArchitectureScene extends Phaser.Scene {
     );
   }
 
-  private beginPlacement(nodeId: ArchitectureNodeId): void {
+  private beginPlacement(nodeId: ArchitectureNodeId, instanceId?: string): void {
     if (this.isWaveRunning) {
       return;
     }
     this.activePlacementNode = nodeId;
+    this.activePlacementInstanceId = instanceId ?? null;
     this.statusText.setText("초록색 격자 칸을 골라 장비를 놓아 주세요");
     this.refreshGrid();
   }
 
   private cancelPlacement(): void {
     this.activePlacementNode = null;
+    this.activePlacementInstanceId = null;
     this.refreshGrid();
   }
 
@@ -956,20 +1011,23 @@ export class ArchitectureScene extends Phaser.Scene {
       this.cameras.main.shake(100, 0.002);
       return;
     }
-    this.requestPlacement(payload.nodeId, position);
+    this.requestPlacement(payload.nodeId, position, false, payload.instanceId);
   }
 
   private requestPlacement(
     nodeId: ArchitectureNodeId,
     position: GridPosition,
     suppressBoardPan = false,
+    instanceId?: string
   ): void {
     this.suppressBoardPanUntilPointerUp = suppressBoardPan;
     gameEvents.emit(GAME_EVENTS.NODE_PLACEMENT_REQUEST, {
       nodeId,
       position,
+      instanceId,
     });
     this.activePlacementNode = null;
+    this.activePlacementInstanceId = null;
     this.refreshGrid();
   }
 

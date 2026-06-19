@@ -7,7 +7,7 @@
 ## 현재 플레이 흐름
 
 1. 보드 상단에는 고정된 `Traffic Ingress`와 `Response Egress`가 존재합니다.
-2. 상점에서 `App Server A`와 `Primary DB`를 구매합니다.
+2. 최초 상점에서 `EC2 App Server`와 `RDS Primary DB`를 구매합니다.
 3. 장비를 격자에 배치하고 다음 경로를 연결합니다.
 
 ```text
@@ -17,8 +17,9 @@ Primary DB → App Server A → Response Egress
 
 4. 요청은 서버 처리 후 DB 읽기·저장을 수행합니다.
 5. DB 작업이 끝난 응답이 상단 Egress까지 돌아와야 성공입니다.
-6. Wave 5부터 Load Balancer와 App Server B로 수평 확장합니다.
-7. Wave 8부터 DB Index로 Slow Query와 DB Queue 병목을 해결합니다.
+6. Credits를 장비 구매, 상점 새로고침, XP에 배분합니다.
+7. 레벨업하면 LINK CAPACITY 또는 BOARD SIZE 중 하나를 확장합니다.
+8. 같은 장비 3개를 모아 성급을 올리고 역할별 증강을 선택합니다.
 
 ## 요청과 장비
 
@@ -29,13 +30,7 @@ Primary DB → App Server A → Response Egress
 | SLOW | 인덱스 없는 느린 조회 | DB Queue |
 | Burst | 짧은 간격의 요청 묶음 | Server Queue |
 
-| 장비 | 해금 | 역할 |
-|---|---:|---|
-| App Server A | Wave 1 | HTTPS 비즈니스 로직 처리 |
-| Primary DB | Wave 1 | 읽기·저장과 응답 데이터 생성 |
-| Load Balancer | Wave 5 | 두 서버로 Round Robin 분산 |
-| App Server B | Wave 5 | 서버 처리량 확장 |
-| DB Index | Wave 8 | DB 읽기·Slow Query 최적화 |
+장비는 20종, 5개 티어로 구성되며 가격은 `4 / 12 / 25 / 50 / 90`입니다. 서버·DB·로드밸런서는 직접 배치하고 Queue·Cache·Security·Storage는 패시브 성능 보정을 제공합니다.
 
 ## 조작
 
@@ -61,19 +56,19 @@ Primary DB → App Server A → Response Egress
 링크 길이는 두 장비 사이의 가로·세로 그리드 칸 수로 계산합니다. 입구
 링크는 파랑, 출구 링크는 보라, DB 링크는 노랑으로 표시합니다.
 
-| LINK LEVEL | 링크 1개 최대 | 전체 링크 예산 | 확장 비용 |
-|---:|---:|---:|---:|
-| 1 | 4칸 | 8칸 | 60 |
-| 2 | 6칸 | 22칸 | 100 |
-| 3 | 9칸 | 36칸 | MAX |
-
-보드는 7×4에서 시작하며 Credits를 사용해 10×5, 13×6으로 확장합니다.
-
-| BOARD LEVEL | 사용 영역 | 확장 비용 |
+| LINK LEVEL | 링크 1개 최대 | 전체 링크 예산 |
 |---:|---:|---:|
-| 1 | 7×4 | 90 |
-| 2 | 10×5 | 140 |
-| 3 | 13×6 | MAX |
+| 1 | 4칸 | 8칸 |
+| 2 | 6칸 | 22칸 |
+| 3 | 9칸 | 36칸 |
+
+보드는 7×4에서 시작합니다. 플레이어 레벨이 오를 때 BOARD SIZE를 선택하면 10×5, 13×6으로 확장됩니다.
+
+| BOARD LEVEL | 사용 영역 |
+|---:|---:|
+| 1 | 7×4 |
+| 2 | 10×5 |
+| 3 | 13×6 |
 
 ## 화면 배치
 
@@ -110,4 +105,5 @@ src/
 
 - [서비스 도메인 캠페인과 Stage 1 구현 아키텍처](./docs/service-domain-campaign-architecture-ko.md)
 - [현재 구현 상세](./docs/current-implementation-ko.md)
+- [장비 티어·레벨·합성·증강 구현 명세](./docs/device-upgrade-spec-ko.md)
 - [문서 전체 목차](./docs/README.md)

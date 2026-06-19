@@ -24,6 +24,12 @@ const directArchitecture: ArchitectureConfig = {
     { from: "serverA", to: "database" },
     { from: "serverA", to: "exit" },
   ],
+  boardSlots: {
+    loadBalancer: null,
+    serverA: null,
+    serverB: null,
+    database: null,
+  },
 };
 
 const scaledArchitecture: ArchitectureConfig = {
@@ -42,6 +48,12 @@ const scaledArchitecture: ArchitectureConfig = {
     { from: "serverA", to: "database" },
     { from: "serverB", to: "database" },
   ],
+  boardSlots: {
+    loadBalancer: null,
+    serverA: null,
+    serverB: null,
+    database: null,
+  },
 };
 
 describe("simulateTrafficWave", () => {

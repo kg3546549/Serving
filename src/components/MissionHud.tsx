@@ -9,6 +9,7 @@ interface MissionHudProps {
   waveTotal: number;
   protocol: NetworkProtocol;
   serviceHp: number;
+  coins: number;
   liveMetrics: LiveWaveMetrics;
   isRunning: boolean;
   onHelp: () => void;
@@ -22,6 +23,7 @@ export function MissionHud({
   waveTotal,
   protocol,
   serviceHp,
+  coins,
   liveMetrics,
   isRunning,
   onHelp,
@@ -32,22 +34,30 @@ export function MissionHud({
 
   return (
     <header className="mission-hud">
-      <div
-        className="stage-chip"
-        aria-label={`현재 스테이지 ${stageNumber}`}
-      >
-        <small>STAGE</small>
-        <span>{String(stageNumber).padStart(2, "0")}</span>
+      <div className="mission-stage">
+        <div
+          className="stage-chip"
+          aria-label={`현재 스테이지 ${stageNumber}`}
+        >
+          <small>STAGE</small>
+          <span>{String(stageNumber).padStart(2, "0")}</span>
+        </div>
+        <div className="mission-copy">
+          <strong>{stageName}</strong>
+          <div className="mission-description">
+            <span>HTTPS 엔드포인트를 제공하는 기본 API 아키텍처</span>
+            <button type="button" onClick={onHelp}>
+              도움말
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="mission-title">
-        <div>
-          <strong>{stageName}</strong>
-          <span>
-            {protocol} · WAVE {String(waveNumber).padStart(2, "0")} /{" "}
-            {String(waveCount).padStart(2, "0")}
-          </span>
-        </div>
+      <div className="mission-wave">
+        <span>
+          {protocol} · WAVE {String(waveNumber).padStart(2, "0")} /{" "}
+          {String(waveCount).padStart(2, "0")}
+        </span>
         <div
           className="wave-progress"
           aria-label={`요청 처리 ${settledRequests}/${waveTotal}`}
@@ -57,31 +67,22 @@ export function MissionHud({
       </div>
 
       <div className="mini-resources">
-        <span
-          className="mini-resource hp"
-          aria-label={`서비스 HP ${serviceHp}`}
-        >
+        <span className="mini-resource hp" aria-label={`서비스 HP ${serviceHp}`}>
           <small>SERVICE HP</small>
-          <strong>♥ {serviceHp}</strong>
+          <strong>{serviceHp} / 100</strong>
         </span>
         <span className="mini-resource traffic" aria-live="polite">
-          <small>
-            {isRunning
-              ? `DB Q ${liveMetrics.databaseQueue}`
-              : "REQUESTS"}
-          </small>
+          <small>REQUESTS</small>
           <strong>
-            {isRunning ? `${liveMetrics.completed} / ${waveTotal}` : waveTotal}
+            {isRunning
+              ? `${liveMetrics.completed + liveMetrics.failed} / ${waveTotal}`
+              : waveTotal}
           </strong>
         </span>
-        <button
-          type="button"
-          className="help-button"
-          onClick={onHelp}
-          aria-label="도움말 열기"
-        >
-          i
-        </button>
+        <span className="mini-resource credits" aria-label={`보유 재화 ${coins}`}>
+          <small>CREDITS</small>
+          <strong>{coins}</strong>
+        </span>
       </div>
     </header>
   );

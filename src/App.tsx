@@ -13,19 +13,24 @@ import {
   unlockAudio,
 } from "./audio/audioDirector";
 import { ACTIVE_STAGE, STAGE_ONE_WAVES } from "./campaign/campaignData";
-import { BuildDock } from "./components/BuildDock";
+import { AugmentPopup } from "./components/AugmentPopup";
 import { AutoWaveBar } from "./components/AutoWaveBar";
 import { HelpModal } from "./components/HelpModal";
+import { InfrastructureUpgradePopup } from "./components/InfrastructureUpgradePopup";
 import { InventoryDock } from "./components/InventoryDock";
 import { MainMenu } from "./components/MainMenu";
 import { MissionHud } from "./components/MissionHud";
 import { NodeDetails } from "./components/NodeDetails";
 import { ResultModal } from "./components/ResultModal";
+import { ShopDock } from "./components/ShopDock";
 import { GAME_EVENTS, gameEvents } from "./game/bridge/gameEvents";
 import {
+  getBoardTier,
+  getLinkTier,
+  getTotalConnectionCells,
+  simulateTrafficWave,
   type ArchitectureNodeId,
   type GridPosition,
-  simulateTrafficWave,
   type WaveSimulationResult,
 } from "./simulation/trafficSimulation";
 import {
@@ -39,6 +44,7 @@ const GameHost = lazy(() =>
 
 const FIRST_WAVE_PREP_DURATION_MS = 60_000;
 const MAINTENANCE_DURATION_MS = 25_000;
+const EMERGENCY_MAINTENANCE_DURATION_MS = 15_000;
 
 export function App(): React.JSX.Element {
   const [isHelpOpen, setHelpOpen] = useState(false);
@@ -47,15 +53,31 @@ export function App(): React.JSX.Element {
   const [prepRemainingMs, setPrepRemainingMs] =
     useState(FIRST_WAVE_PREP_DURATION_MS);
   const autoWaveStartedRef = useRef(false);
+
   const phase = useGameStore((state) => state.phase);
   const waveIndex = useGameStore((state) => state.waveIndex);
   const coins = useGameStore((state) => state.coins);
   const serviceHp = useGameStore((state) => state.serviceHp);
   const worldReady = useGameStore((state) => state.worldReady);
   const architecture = useGameStore((state) => state.architecture);
-  const ownedNodes = useGameStore((state) => state.ownedNodes);
+  const inventory = useGameStore((state) => state.inventory);
   const liveMetrics = useGameStore((state) => state.liveMetrics);
   const lastResult = useGameStore((state) => state.lastResult);
+  const playerLevel = useGameStore((state) => state.playerLevel);
+  const playerXp = useGameStore((state) => state.playerXp);
+  const shopItems = useGameStore((state) => state.shopItems);
+  const augmentState = useGameStore((state) => state.augmentState);
+  const pendingInfrastructureUpgrades = useGameStore(
+    (state) => state.pendingInfrastructureUpgrades,
+  );
+  const maintenanceMode = useGameStore((state) => state.maintenanceMode);
+  const maintenanceExtensionMs = useGameStore(
+    (state) => state.maintenanceExtensionMs,
+  );
+  const emergencyMaintenanceCharges = useGameStore(
+    (state) => state.emergencyMaintenanceCharges,
+  );
+
   const startMission = useGameStore((state) => state.startMission);
   const setWorldReady = useGameStore((state) => state.setWorldReady);
   const beginWave = useGameStore((state) => state.beginWave);
@@ -66,19 +88,32 @@ export function App(): React.JSX.Element {
   const continueAfterResult = useGameStore(
     (state) => state.continueAfterResult,
   );
-  const purchaseSystem = useGameStore((state) => state.purchaseSystem);
+  const useEmergencyMaintenance = useGameStore(
+    (state) => state.useEmergencyMaintenance,
+  );
+  const rollShop = useGameStore((state) => state.rollShop);
+  const buyXp = useGameStore((state) => state.buyXp);
+  const buyShopItem = useGameStore((state) => state.buyShopItem);
+  const sellNode = useGameStore((state) => state.sellNode);
+  const selectAugment = useGameStore((state) => state.selectAugment);
+  const chooseInfrastructureUpgrade = useGameStore(
+    (state) => state.chooseInfrastructureUpgrade,
+  );
   const placeNode = useGameStore((state) => state.placeNode);
   const moveNode = useGameStore((state) => state.moveNode);
   const toggleConnection = useGameStore((state) => state.toggleConnection);
-  const upgradeLinks = useGameStore((state) => state.upgradeLinks);
-  const upgradeBoard = useGameStore((state) => state.upgradeBoard);
   const clearConnections = useGameStore((state) => state.clearConnections);
   const resetCampaign = useGameStore((state) => state.resetCampaign);
+
   const wave = STAGE_ONE_WAVES[waveIndex];
   const prepDurationMs =
-    waveIndex === 0
-      ? FIRST_WAVE_PREP_DURATION_MS
-      : MAINTENANCE_DURATION_MS;
+    maintenanceMode === "emergency"
+      ? EMERGENCY_MAINTENANCE_DURATION_MS
+      : maintenanceMode === "regular"
+        ? MAINTENANCE_DURATION_MS + maintenanceExtensionMs
+        : FIRST_WAVE_PREP_DURATION_MS;
+  const boardTier = getBoardTier(architecture.boardLevel);
+  const linkTier = getLinkTier(architecture.linkLevel);
 
   const handleStartMission = useCallback(() => {
     void unlockAudio();
@@ -90,9 +125,7 @@ export function App(): React.JSX.Element {
   }, [setWorldReady]);
 
   const handleWaveProgress = useCallback(
-    (metrics: LiveWaveMetrics) => {
-      updateWaveProgress(metrics);
-    },
+    (metrics: LiveWaveMetrics) => updateWaveProgress(metrics),
     [updateWaveProgress],
   );
 
@@ -116,7 +149,6 @@ export function App(): React.JSX.Element {
     ) {
       return;
     }
-
     autoWaveStartedRef.current = true;
     const result = simulateTrafficWave(wave, architecture);
     beginWave(result);
@@ -127,10 +159,25 @@ export function App(): React.JSX.Element {
   const handleContinue = useCallback(() => {
     setSelectedNode(null);
     autoWaveStartedRef.current = false;
-    setPrepRemainingMs(MAINTENANCE_DURATION_MS);
+    setPrepRemainingMs(MAINTENANCE_DURATION_MS + maintenanceExtensionMs);
     continueAfterResult();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
-  }, [continueAfterResult]);
+  }, [continueAfterResult, maintenanceExtensionMs]);
+
+  const handleEmergencyMaintenance = useCallback(() => {
+    if (phase !== "running" || emergencyMaintenanceCharges <= 0) {
+      return;
+    }
+    setSelectedNode(null);
+    autoWaveStartedRef.current = false;
+    setPrepRemainingMs(EMERGENCY_MAINTENANCE_DURATION_MS);
+    useEmergencyMaintenance();
+    gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
+  }, [
+    emergencyMaintenanceCharges,
+    phase,
+    useEmergencyMaintenance,
+  ]);
 
   const handleRestart = useCallback(() => {
     setSelectedNode(null);
@@ -140,37 +187,45 @@ export function App(): React.JSX.Element {
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
   }, [resetCampaign]);
 
-  const handleSelectNode = useCallback((nodeId: ArchitectureNodeId) => {
-    gameEvents.emit(GAME_EVENTS.INVENTORY_SELECT, { nodeId });
-  }, []);
+  const handleSelectNode = useCallback(
+    (nodeId: ArchitectureNodeId, instanceId?: string) => {
+      gameEvents.emit(GAME_EVENTS.INVENTORY_SELECT, { nodeId, instanceId });
+    },
+    [],
+  );
 
   const handleCancelPlacement = useCallback(() => {
     gameEvents.emit(GAME_EVENTS.BUILD_CANCEL, undefined);
   }, []);
 
   const handleNodePlacement = useCallback(
-    (nodeId: ArchitectureNodeId, position: GridPosition) => {
-      placeNode(nodeId, position);
-    },
+    (
+      nodeId: ArchitectureNodeId,
+      position: GridPosition,
+      instanceId?: string,
+    ) => placeNode(nodeId, position, instanceId),
     [placeNode],
   );
 
   const handleConnectionRequest = useCallback(
-    (from: ArchitectureNodeId, to: ArchitectureNodeId) => {
-      toggleConnection(from, to);
-    },
+    (from: ArchitectureNodeId, to: ArchitectureNodeId) =>
+      toggleConnection(from, to),
     [toggleConnection],
   );
 
   const handleNodeMove = useCallback(
-    (nodeId: ArchitectureNodeId, position: GridPosition) => {
-      moveNode(nodeId, position);
-    },
+    (nodeId: ArchitectureNodeId, position: GridPosition) =>
+      moveNode(nodeId, position),
     [moveNode],
   );
 
   const handleDropNode = useCallback(
-    (nodeId: ArchitectureNodeId, clientX: number, clientY: number) => {
+    (
+      nodeId: ArchitectureNodeId,
+      clientX: number,
+      clientY: number,
+      instanceId?: string,
+    ) => {
       const canvas = document.querySelector<HTMLCanvasElement>(
         ".game-canvas canvas",
       );
@@ -178,21 +233,23 @@ export function App(): React.JSX.Element {
         handleCancelPlacement();
         return;
       }
-
       const bounds = canvas.getBoundingClientRect();
-      const x = ((clientX - bounds.left) / bounds.width) * 1200;
-      const y = ((clientY - bounds.top) / bounds.height) * 720;
-      gameEvents.emit(GAME_EVENTS.INVENTORY_DROP, { nodeId, x, y });
+      const x = clientX - bounds.left;
+      const y = clientY - bounds.top;
+      gameEvents.emit(GAME_EVENTS.INVENTORY_DROP, {
+        nodeId,
+        x,
+        y,
+        instanceId,
+      });
     },
     [handleCancelPlacement],
   );
 
   useEffect(() => {
-    if (!worldReady) {
-      return;
+    if (worldReady) {
+      gameEvents.emit(GAME_EVENTS.CONFIGURE_ARCHITECTURE, { architecture });
     }
-
-    gameEvents.emit(GAME_EVENTS.CONFIGURE_ARCHITECTURE, { architecture });
   }, [architecture, worldReady]);
 
   useEffect(() => {
@@ -201,16 +258,16 @@ export function App(): React.JSX.Element {
     }
     autoWaveStartedRef.current = false;
     setPrepRemainingMs(prepDurationMs);
-  }, [phase, prepDurationMs, waveIndex]);
+  }, [maintenanceMode, phase, prepDurationMs, waveIndex]);
 
-  const isTimerPaused = isHelpOpen || selectedNode !== null;
+  const isTimerPaused =
+    isHelpOpen ||
+    selectedNode !== null ||
+    augmentState !== null ||
+    pendingInfrastructureUpgrades > 0;
 
   useEffect(() => {
-    if (
-      phase !== "prepare" ||
-      !worldReady ||
-      isTimerPaused
-    ) {
+    if (phase !== "prepare" || !worldReady || isTimerPaused) {
       return;
     }
     const timer = window.setInterval(() => {
@@ -241,91 +298,124 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <main className="game-shell">
-      <MissionHud
-        stageNumber={ACTIVE_STAGE.id}
-        stageName={ACTIVE_STAGE.name}
-        waveNumber={wave.id}
-        waveCount={STAGE_ONE_WAVES.length}
-        waveTotal={wave.requestCount}
-        protocol={wave.protocol}
-        serviceHp={serviceHp}
-        liveMetrics={liveMetrics}
-        isRunning={phase === "running"}
-        onHelp={() => setHelpOpen(true)}
-      />
-
-      <section className="play-board">
-        <div className="world-frame">
-          <Suspense fallback={<div className="world-loading">보드 준비 중...</div>}>
-            <GameHost
-              onReady={handleWorldReady}
-              onWaveProgress={handleWaveProgress}
-              onWaveComplete={handleWaveComplete}
-              onNodePlacement={handleNodePlacement}
-              onConnectionRequest={handleConnectionRequest}
-              onNodeMove={handleNodeMove}
-              onNodeDetails={setSelectedNode}
-            />
-          </Suspense>
-        </div>
-        <BuildDock
-          architecture={architecture}
-          ownedNodes={ownedNodes}
+    <main className="infra-game">
+      <section className="infra-main">
+        <MissionHud
+          stageNumber={ACTIVE_STAGE.id}
+          stageName={ACTIVE_STAGE.name}
+          waveNumber={wave.id}
+          waveCount={STAGE_ONE_WAVES.length}
+          waveTotal={wave.requestCount}
+          protocol={wave.protocol}
+          serviceHp={serviceHp}
           coins={coins}
-          disabled={phase !== "prepare"}
-          waveIndex={waveIndex}
-          wave={wave}
-          onPurchaseSystem={purchaseSystem}
-          onClearConnections={clearConnections}
+          liveMetrics={liveMetrics}
+          isRunning={phase === "running"}
+          onHelp={() => setHelpOpen(true)}
         />
-      </section>
 
-      {(phase === "prepare" || phase === "running") && (
-        <section className="bottom-operations" aria-label="운영 준비">
+        <div className="board-meta">
+          <span>BOARD LV. {boardTier.level}</span>
+          <b>{boardTier.columns} × {boardTier.rows}</b>
+          <i />
+          <span>LINK LV. {linkTier.level}</span>
+          <b>{getTotalConnectionCells(architecture)} / {linkTier.totalCells}</b>
+        </div>
+
+        <section className="board-stage" aria-label="아키텍처 보드">
+          <div className="world-frame">
+            <Suspense
+              fallback={<div className="world-loading">보드 준비 중...</div>}
+            >
+              <GameHost
+                onReady={handleWorldReady}
+                onWaveProgress={handleWaveProgress}
+                onWaveComplete={handleWaveComplete}
+                onNodePlacement={handleNodePlacement}
+                onConnectionRequest={handleConnectionRequest}
+                onNodeMove={handleNodeMove}
+                onNodeDetails={setSelectedNode}
+              />
+            </Suspense>
+          </div>
+          {selectedNode && (
+            <NodeDetails
+              nodeId={selectedNode}
+              architecture={architecture}
+              onClose={() => setSelectedNode(null)}
+            />
+          )}
+        </section>
+
+        {(phase === "prepare" || phase === "running") && (
           <AutoWaveBar
             phase={phase}
+            maintenanceMode={maintenanceMode}
             remainingMs={prepRemainingMs}
             totalMs={prepDurationMs}
             paused={isTimerPaused}
+            emergencyMaintenanceCharges={emergencyMaintenanceCharges}
+            onEmergencyMaintenance={handleEmergencyMaintenance}
           />
+        )}
+
+        {(phase === "prepare" || phase === "running") && (
           <InventoryDock
+            inventory={inventory}
             architecture={architecture}
-            ownedNodes={ownedNodes}
-            coins={coins}
             disabled={phase !== "prepare"}
             onSelectNode={handleSelectNode}
             onDropNode={handleDropNode}
             onCancelPlacement={handleCancelPlacement}
-            onUpgradeLinks={upgradeLinks}
-            onUpgradeBoard={upgradeBoard}
+            onSellNode={sellNode}
           />
-        </section>
-      )}
+        )}
+      </section>
 
-      {selectedNode && (
-        <NodeDetails
-          nodeId={selectedNode}
-          architecture={architecture}
-          onClose={() => setSelectedNode(null)}
-        />
-      )}
+      <ShopDock
+        playerLevel={playerLevel}
+        playerXp={playerXp}
+        shopItems={shopItems}
+        coins={coins}
+        disabled={phase !== "prepare"}
+        wave={wave}
+        emergencyMaintenanceCharges={emergencyMaintenanceCharges}
+        maintenanceExtensionMs={maintenanceExtensionMs}
+        onRollShop={() => rollShop(false)}
+        onBuyXp={buyXp}
+        onBuyShopItem={buyShopItem}
+        onClearConnections={clearConnections}
+      />
+
       {isHelpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       {(phase === "result" ||
         phase === "cleared" ||
         phase === "defeated") &&
         lastResult && (
-        <ResultModal
-          result={lastResult}
-          finalClear={phase === "cleared"}
-          defeated={phase === "defeated"}
-          serviceHp={serviceHp}
-          hpDamage={Math.min(
-            30,
-            Math.ceil(lastResult.metrics.failed * 1.5),
-          )}
-          onContinue={handleContinue}
-          onRestart={handleRestart}
+          <ResultModal
+            result={lastResult}
+            finalClear={phase === "cleared"}
+            defeated={phase === "defeated"}
+            serviceHp={serviceHp}
+            hpDamage={Math.min(
+              30,
+              Math.ceil(lastResult.metrics.failed * 1.5),
+            )}
+            onContinue={handleContinue}
+            onRestart={handleRestart}
+          />
+        )}
+      {augmentState && (
+        <AugmentPopup
+          augmentState={augmentState}
+          onSelectAugment={selectAugment}
+        />
+      )}
+      {!augmentState && pendingInfrastructureUpgrades > 0 && (
+        <InfrastructureUpgradePopup
+          architecture={architecture}
+          pendingCount={pendingInfrastructureUpgrades}
+          onSelect={chooseInfrastructureUpgrade}
         />
       )}
     </main>

@@ -4,121 +4,130 @@
 
 ## 구현 범위
 
-현재 플레이 가능한 범위는 `Stage 1: 기본 HTTPS API`의 Wave 1~10이다. 이후 Stage 2~8은 `src/campaign/campaignData.ts`에 서비스 도메인, 프로토콜, 적, 장비 설계 데이터가 정의되어 있다.
+현재 플레이 가능한 캠페인은 `Stage 1: 기본 HTTPS API`의 Wave 1~10이다. 이후 서비스 도메인과 프로토콜은 캠페인 데이터에 정의되어 있으며 순차 구현 대상으로 남아 있다.
 
 ## 시작 상태
 
-- 보드 상단의 Traffic Ingress와 Response Egress 고정 배치
-- BOARD LV.1의 7×4 영역만 사용 가능
-- 보유 장비 0개
-- 시작 Credits 240
-- Service HP 100
-- 첫 구성 시간 60초, 이후 점검시간 25초
-- App Server A와 Primary DB는 Wave 1부터 구매 가능
+- Traffic Ingress와 Response Egress 고정 배치
+- BOARD LV.1: 7×4
+- LINK LV.1: 링크당 최대 4칸, 전체 8칸
+- 보유 장비 0개, 보유 한도 8개
+- Credits 240, Service HP 100
+- 첫 서비스 준비 60초
+- 최초 상점: EC2, RDS Primary, API Gateway, SQS, Apache 고정
 
-최소 운영 경로:
-
-```text
-Traffic Ingress → App Server A → Primary DB
-Primary DB → App Server A → Response Egress
-```
-
-## 요청 성공 판정
-
-요청은 다음 이벤트를 순서대로 통과한다.
+최소 성공 경로:
 
 ```text
-spawned
-→ routed
-→ server_started 또는 server_queued
-→ database_routed
-→ database_started 또는 database_queued
-→ database_completed
-→ response_started
-→ completed
+Traffic Ingress → App Server → Primary DB
+Primary DB → App Server → Response Egress
 ```
 
-서버 처리가 끝나도 DB 처리 또는 응답 반환 전에 제한 시간을 넘기면 실패한다.
+## 요청 생명주기
 
-## 트래픽 종류
+서버 처리만으로 성공하지 않는다.
 
-- GET Read: 일반 DB 읽기
-- POST Write: 읽기보다 오래 걸리는 DB 저장
-- Slow Read: 인덱스가 없으면 DB 슬롯을 오래 점유
-- Burst: 요청 생성 간격을 줄여 Queue를 압박하는 웨이브 패턴
+```text
+요청 생성
+→ 라우팅
+→ 서버 처리 또는 서버 Queue
+→ DB 라우팅
+→ DB 읽기·저장 또는 DB Queue
+→ 응답 생성
+→ Response Egress 도착
+→ 완료
+```
 
-Stage 1의 전송 프로토콜은 HTTPS로 고정된다. MQTT, WebSocket, HLS, RTMP, SRT, RTSP는 이후 스테이지 데이터에 배치되어 있다.
+제한시간 초과와 Queue 초과는 실패 요청으로 집계되고 Service HP를 감소시킨다.
 
-## 장비와 해금
+## 경제와 성장
 
-| 장비 | 가격 | 해금 | 구현 효과 |
-|---|---:|---:|---|
-| App Server A | 60 | Wave 1 | 동시 처리 2, Queue 6 |
-| Primary DB | 80 | Wave 1 | 동시 처리 2, Queue 8 |
-| Load Balancer | 80 | Wave 5 | 두 서버 Round Robin |
-| App Server B | 70 | Wave 5 | 서버 처리량 2배 확장 |
-| DB Index | 110 | Wave 8 | 읽기·Slow Query 단축, DB Queue 14 |
+- 요청 완료와 웨이브 통과 보상으로 Credits 획득
+- 장비 구매, 상점 새로고침, XP 구매에 Credits 사용
+- 상점 새로고침: 2
+- XP 4 구매: 4
+- 웨이브 종료 XP: 2
+- 플레이어 레벨: 1~10
+- 레벨업마다 `LINK CAPACITY` 또는 `BOARD SIZE` 확장 선택
 
-## 병목 전환
+보드와 링크는 별도 직접 구매 버튼을 사용하지 않는다.
 
-- Wave 1~4: 최소 경로와 GET/POST 학습
-- Wave 5~7: App Server Queue 포화와 수평 확장
-- Wave 8~10: Primary DB Queue 포화와 DB Index
-
-서버를 증설하면 DB 유입량이 증가하므로, 후반에는 서버가 아니라 DB가 병목으로 표시된다.
-
-## 포트와 링크 제약
-
-| 장비 | 트래픽 포트 | 데이터 포트 |
-|---|---:|---:|
-| Traffic Ingress | 1 | 0 |
-| Response Egress | 1 | 0 |
-| App Server A | 2 | 1 |
-| App Server B | 1 | 1 |
-| Load Balancer | 4 | 0 |
-| Primary DB | 0 | 2 |
-
-App Server A는 직접 구성에서 입구 요청 링크와 출구 응답 링크를 각각 사용한다. App Server B는 Load Balancer와 연결되는 양방향 링크 하나를 사용한다. DB 연결은 별도의 데이터 포트로 계산한다. Load Balancer는 입구, 출구, 서버 A/B를 연결하는 트래픽 링크 4개를 지원한다.
-
-허용 연결은 다음으로 제한한다.
-
-- Ingress ↔ App Server A
-- Egress ↔ App Server A
-- Ingress ↔ Load Balancer
-- Egress ↔ Load Balancer
-- Load Balancer ↔ App Server A/B
-- App Server A/B ↔ Primary DB
-
-링크 길이는 Manhattan 거리로 계산한다. `LINK LEVEL`은 링크 하나의 최대 길이와 전체 링크 칸 예산을 확장한다.
-
-| Level | 링크 최대 길이 | 전체 예산 | 다음 레벨 비용 |
+| 레벨 | 보드 | 링크당 최대 | 전체 링크 |
 |---:|---:|---:|---:|
-| 1 | 4칸 | 8칸 | 60 |
-| 2 | 6칸 | 22칸 | 100 |
-| 3 | 9칸 | 36칸 | 없음 |
+| 1 | 7×4 | 4칸 | 8칸 |
+| 2 | 10×5 | 6칸 | 22칸 |
+| 3 | 13×6 | 9칸 | 36칸 |
 
-`BOARD LEVEL`은 실제 배치 가능한 격자 영역을 확장한다.
+## 장비
 
-| Level | 사용 영역 | 다음 레벨 비용 |
-|---:|---:|---:|
-| 1 | 7×4 | 90 |
-| 2 | 10×5 | 140 |
-| 3 | 13×6 | 없음 |
+20종 장비가 5개 티어로 구현되어 있다. 티어 가격은 4, 12, 25, 50, 90 Credits다.
 
-## 화면 구현
+- 서버, DB, 로드밸런서: 보드 역할 슬롯에 직접 배치
+- Queue, Cache, Security, Storage: 보유 시 성능 보정 패시브
+- 동일 장비 3개: 상위 성급으로 자동 합성
+- 합성 직후 역할별 증강 3개 중 하나 선택
+- 레어 증강 확률: 2성 5%, 3성 15%
 
-- React: 메뉴, HUD, 우측 상점, 하단 보유 장비 Dock, 도움말, 결과
-- Phaser: 단계 확장형 13×6 격자, 장비, 직교 링크, 요청 이동, Queue 압력
-- Zustand: 구매, 배치, 연결, 코인, HP, 웨이브 진행
-- 순수 TypeScript: Tick 기반 서버·DB·응답 시뮬레이션
+상세 표는 [장비 티어·레벨·합성·증강 구현 명세](./device-upgrade-spec-ko.md)를 따른다.
 
-서비스 개시 Progress Bar 아래에 LINK CAPACITY, BOARD SIZE, 가로형 보유 장비 Dock을 배치한다. 장비 카드는 `READY`와 `ONLINE` 상태를 표시하며 기존 클릭·드래그 배치 동작을 유지한다. 보드의 장식 배경은 제거하고 링크와 장비 상태에 시선을 집중시킨다.
+## 성능 반영
 
-요청 링크는 파랑, 응답 링크는 보라, DB 데이터 링크는 노랑으로 표시한다. Load Balancer와 App Server 사이처럼 요청과 응답이 같은 물리 링크를 공유하는 구간은 파랑·보라 이중선으로 표시한다. 완료된 요청은 Response Egress에서 `200 OK` 피드백을 출력한다.
+장비 티어, 성급, 증강, 패시브 장비는 다음 시뮬레이션 값에 반영된다.
 
-보드 카메라는 `0.6배~2배` 범위로 자유롭게 확대·축소할 수 있다. 마우스 휠은 커서 위치를 확대 기준점으로 사용하고, 빈 보드 좌클릭 드래그·휠 버튼 드래그·Space+좌클릭 드래그는 화면을 이동한다. `R` 키는 배율과 위치를 초기화한다. 장비 카드의 외부 드래그 배치는 현재 카메라 변환을 역산해 정확한 격자 위치에 놓는다.
+- 서버 동시 처리 슬롯
+- 서버 Queue 용량
+- 서버 처리 시간
+- DB 동시 쿼리 슬롯
+- DB Queue와 저장 용량
+- DB 읽기·쓰기 처리 시간
+- 응답 반환 시간
+- 로드밸런서 백엔드 한도
 
-Phaser는 시뮬레이션 판정에 관여하지 않고 계산된 Traffic Event를 시간순으로 재생한다.
+Redis, Read Replica, SQS, Kafka, S3 등은 해당 역할의 처리 배수나 Queue를 보정한다.
+
+## 점검
+
+- 최초 준비: 60초
+- 정기점검: 25초
+- 긴급점검: 진행 중 서비스를 멈추고 15초
+- 연장점검: 정기점검 +10초
+- 추가점검: 긴급점검 +1회와 정기점검 +10초
+
+정보 팝업, 증강 선택, 인프라 확장 선택 중에는 준비 타이머가 정지한다.
+
+## 링크와 포트
+
+- 일반 App Server는 트래픽 링크 수가 제한됨
+- Load Balancer는 여러 서버로 분기 가능
+- DB 데이터 링크는 트래픽 링크와 별도 계산
+- 허용되지 않은 장비 조합은 연결 불가
+- 링크 길이는 Manhattan 거리로 계산
+- 요청 링크 파랑, 응답 링크 보라, DB 링크 노랑
+
+## 화면
+
+- 상단: Stage, Wave, Service HP, Requests, Credits
+- 중앙: 자유 확대·이동 가능한 아키텍처 보드
+- 보드 하단: 서비스 준비·진행 상태
+- 최하단: BOARD SIZE, LINK CAPACITY, 8칸 보유 장비
+- 우측: 웨이브 정보, 요청 생명주기, 레벨·XP, 5칸 상점
+
+Azure Portal 형태의 좌측 사이드바, 검은 검색 헤더, 이모지 중심 아이콘은 사용하지 않는다. 밝은 카드형 레이아웃과 코드 기반 SVG 아이콘을 사용한다.
+
+보드는 Phaser `RESIZE` 모드로 컨테이너를 채우며, 보드 레벨이 바뀔 때 활성 영역을 중앙에 자동 맞춘다. 이후 마우스 휠과 드래그로 자유롭게 확대·이동할 수 있다.
+
+## 기술 구조
+
+```text
+React
+├─ HUD, 상점, 인벤토리, 팝업
+Phaser
+├─ 격자, 장비, 링크, 요청 연출, 카메라
+Zustand
+├─ 경제, 레벨, 상점, 합성, 점검, 배치 상태
+순수 TypeScript
+└─ 요청 → 서버 → DB → 응답 시뮬레이션
+```
 
 ## 검증
 
@@ -127,4 +136,8 @@ npm test
 npm run build
 ```
 
-테스트는 최소 요청 생명주기, 단일 서버 병목, Load Balancer 분산, DB Index 효과, 미완성 경로 실패, 보드 확장, 링크 용량, 고정 입출구 규칙을 검증한다.
+- 테스트 파일 3개
+- 자동 테스트 18개
+- TypeScript 검사와 Vite 프로덕션 빌드 통과
+- 1280×720 브라우저에서 페이지 오버플로 없음
+- 레벨업 팝업과 7×4→10×5 보드 확장 확인

@@ -4,11 +4,89 @@ import type {
 } from "../campaign/campaignData";
 
 export type BuildSystemType =
-  | "serverA"
+  | "ec2"
+  | "apache"
+  | "apiGateway"
+  | "sqs"
+  | "eks"
+  | "rdsPrimary"
+  | "nlb"
+  | "cognito"
+  | "rdsReplica"
+  | "redis"
+  | "alb"
+  | "waf"
+  | "lambda"
+  | "ecs"
+  | "documentDb"
+  | "kafka"
+  | "dynamoDb"
+  | "s3"
+  | "route53"
+  | "shield";
+
+export type MaintenanceItemType =
+  | "emergencyMaintenance"
+  | "extendedMaintenance"
+  | "additionalMaintenance";
+
+export type ShopItemType = BuildSystemType | MaintenanceItemType;
+
+export type NodeCategory =
+  | "server"
   | "database"
   | "loadBalancer"
-  | "serverB"
-  | "dbIndex";
+  | "queue"
+  | "security"
+  | "cache"
+  | "storage";
+
+export type AugmentType =
+  | "serverRam"
+  | "serverCpu"
+  | "autoScaler"
+  | "dbQuery"
+  | "dbStorage"
+  | "dbSharding"
+  | "dax"
+  | "lbBackends"
+  | "lbAlgorithm"
+  | "lbHealth"
+  | "queuePartitions"
+  | "queueConsumers"
+  | "cacheHitRate"
+  | "securityRules"
+  | "scrubbing"
+  | "storageThroughput";
+
+export interface NodeInstance {
+  id: string;
+  type: BuildSystemType;
+  starLevel: 1 | 2 | 3;
+  augment?: AugmentType;
+}
+
+export interface ArchitecturePerformance {
+  serverConcurrency: number;
+  serverQueueCapacity: number;
+  serverProcessingMultiplier: number;
+  databaseConcurrency: number;
+  databaseQueueCapacity: number;
+  databaseProcessingMultiplier: number;
+  responseMultiplier: number;
+  loadBalancerBackendLimit: number;
+}
+
+export const DEFAULT_ARCHITECTURE_PERFORMANCE: ArchitecturePerformance = {
+  serverConcurrency: 2,
+  serverQueueCapacity: 6,
+  serverProcessingMultiplier: 1,
+  databaseConcurrency: 2,
+  databaseQueueCapacity: 8,
+  databaseProcessingMultiplier: 1,
+  responseMultiplier: 1,
+  loadBalancerBackendLimit: 2,
+};
 
 export type ArchitectureNodeId =
   | "entry"
@@ -79,6 +157,13 @@ export interface ArchitectureConfig {
   boardLevel: BoardLevel;
   nodePositions: ArchitectureNodePositions;
   connections: ArchitectureConnection[];
+  boardSlots: {
+    loadBalancer: string | null;
+    serverA: string | null;
+    serverB: string | null;
+    database: string | null;
+  };
+  performance?: ArchitecturePerformance;
 }
 
 export const LINK_TIERS: readonly LinkTier[] = [
@@ -456,10 +541,7 @@ interface DatabaseState {
 }
 
 const TICK_MS = 100;
-const SERVER_CONCURRENCY = 2;
 const SERVER_PROCESSING_MS = 1_200;
-const SERVER_QUEUE_CAPACITY = 6;
-const DATABASE_CONCURRENCY = 2;
 const DATABASE_QUEUE_CAPACITY = 8;
 const DATABASE_INDEXED_QUEUE_CAPACITY = 14;
 const DATABASE_READ_MS = 650;
@@ -482,46 +564,63 @@ export const SYSTEM_CATALOG: Readonly<
       name: string;
       description: string;
       cost: number;
+      tier: number;
+      category: NodeCategory;
       unlockWave: number;
       nodeId?: ArchitectureNodeId;
     }
   >
 > = {
-  serverA: {
-    name: "App Server A",
-    description: "HTTPS 요청의 비즈니스 로직을 처리합니다.",
-    cost: 60,
-    unlockWave: 1,
-    nodeId: "serverA",
-  },
-  database: {
-    name: "Primary DB",
-    description: "데이터를 읽거나 저장하고 응답 데이터를 만듭니다.",
-    cost: 80,
-    unlockWave: 1,
-    nodeId: "database",
-  },
-  loadBalancer: {
-    name: "Load Balancer",
-    description: "요청을 두 App Server에 Round Robin으로 분산합니다.",
-    cost: 80,
-    unlockWave: 5,
-    nodeId: "loadBalancer",
-  },
-  serverB: {
-    name: "App Server B",
-    description: "서버 처리 슬롯과 Queue 용량을 확장합니다.",
-    cost: 70,
-    unlockWave: 5,
-    nodeId: "serverB",
-  },
-  dbIndex: {
-    name: "DB Index",
-    description: "읽기와 Slow Query 시간을 줄이고 DB Queue를 확장합니다.",
-    cost: 110,
-    unlockWave: 8,
-  },
+  ec2: { name: "EC2 App Server", description: "HTTPS 비즈니스 로직을 처리합니다.", cost: 4, tier: 1, category: "server", unlockWave: 1, nodeId: "serverA" },
+  apache: { name: "Apache Web Server", description: "정적 리소스와 기본 웹 요청을 처리합니다.", cost: 4, tier: 1, category: "server", unlockWave: 1, nodeId: "serverB" },
+  apiGateway: { name: "API Gateway", description: "요청 라우팅과 기본 인증을 담당합니다.", cost: 4, tier: 1, category: "loadBalancer", unlockWave: 1, nodeId: "loadBalancer" },
+  sqs: { name: "SQS Message Queue", description: "폭주 요청을 큐에 저장해 서버를 보호합니다.", cost: 4, tier: 1, category: "queue", unlockWave: 1 },
+  eks: { name: "EKS Container Node", description: "컨테이너 기반 처리 서버를 확장합니다.", cost: 12, tier: 2, category: "server", unlockWave: 1, nodeId: "serverA" },
+  rdsPrimary: { name: "RDS Primary DB", description: "요청 데이터를 읽고 영구 저장합니다.", cost: 12, tier: 2, category: "database", unlockWave: 1, nodeId: "database" },
+  nlb: { name: "Network Load Balancer", description: "L4 연결을 빠르게 여러 서버로 분산합니다.", cost: 12, tier: 2, category: "loadBalancer", unlockWave: 1, nodeId: "loadBalancer" },
+  cognito: { name: "Cognito Auth Server", description: "사용자 인증과 권한 검증을 처리합니다.", cost: 12, tier: 2, category: "security", unlockWave: 1 },
+  rdsReplica: { name: "RDS Read Replica", description: "DB 읽기 요청을 복제본으로 분산합니다.", cost: 25, tier: 3, category: "database", unlockWave: 1 },
+  redis: { name: "ElastiCache Redis", description: "자주 조회되는 데이터를 메모리에서 응답합니다.", cost: 25, tier: 3, category: "cache", unlockWave: 1 },
+  alb: { name: "Application Load Balancer", description: "L7 규칙으로 요청을 지능적으로 분산합니다.", cost: 25, tier: 3, category: "loadBalancer", unlockWave: 1, nodeId: "loadBalancer" },
+  waf: { name: "AWS WAF", description: "악성 웹 요청을 서버 진입 전에 차단합니다.", cost: 25, tier: 3, category: "security", unlockWave: 1 },
+  lambda: { name: "Lambda Serverless", description: "부하에 따라 자동 확장되는 처리 함수를 추가합니다.", cost: 50, tier: 4, category: "server", unlockWave: 1, nodeId: "serverA" },
+  ecs: { name: "ECS Batch Worker", description: "대용량 비동기 작업을 별도로 처리합니다.", cost: 50, tier: 4, category: "server", unlockWave: 1, nodeId: "serverB" },
+  documentDb: { name: "DocumentDB", description: "대규모 문서 데이터를 분산 저장합니다.", cost: 50, tier: 4, category: "database", unlockWave: 1, nodeId: "database" },
+  kafka: { name: "MSK Kafka", description: "이벤트 스트림을 파티션 단위로 처리합니다.", cost: 50, tier: 4, category: "queue", unlockWave: 1 },
+  dynamoDb: { name: "DynamoDB", description: "글로벌 규모의 NoSQL 요청을 처리합니다.", cost: 90, tier: 5, category: "database", unlockWave: 1, nodeId: "database" },
+  s3: { name: "S3 Object Storage", description: "대용량 객체와 정적 콘텐츠를 저장합니다.", cost: 90, tier: 5, category: "storage", unlockWave: 1 },
+  route53: { name: "Route 53 Global", description: "글로벌 DNS와 지역 라우팅을 제공합니다.", cost: 90, tier: 5, category: "loadBalancer", unlockWave: 1, nodeId: "loadBalancer" },
+  shield: { name: "Shield DDoS", description: "대규모 DDoS 트래픽을 정화합니다.", cost: 90, tier: 5, category: "security", unlockWave: 1 }
 } as const;
+
+export const MAINTENANCE_CATALOG: Readonly<
+  Record<
+    MaintenanceItemType,
+    { name: string; description: string; cost: number }
+  >
+> = {
+  emergencyMaintenance: {
+    name: "긴급점검",
+    description: "서비스 운영 중 즉시 서버를 멈추고 점검시간을 엽니다.",
+    cost: 12,
+  },
+  extendedMaintenance: {
+    name: "연장점검",
+    description: "이후 정기점검 시간을 10초 늘립니다.",
+    cost: 12,
+  },
+  additionalMaintenance: {
+    name: "추가점검",
+    description: "긴급점검 1회와 정기점검 시간 10초를 함께 추가합니다.",
+    cost: 24,
+  },
+};
+
+export function isMaintenanceItem(
+  item: ShopItemType,
+): item is MaintenanceItemType {
+  return item in MAINTENANCE_CATALOG;
+}
 
 function createSpawnTimes(wave: WaveDefinition): number[] {
   if (wave.requestCount <= 1) {
@@ -603,21 +702,27 @@ function selectServer(balancedRoute: boolean, requestId: number): number {
 function getDatabaseProcessingMs(
   operation: RequestOperation,
   indexed: boolean,
+  multiplier = 1,
 ): number {
+  let duration: number;
   if (indexed) {
     if (operation === "write") {
-      return DATABASE_INDEXED_WRITE_MS;
+      duration = DATABASE_INDEXED_WRITE_MS;
+    } else {
+      duration =
+        operation === "slowRead"
+          ? DATABASE_INDEXED_SLOW_READ_MS
+          : DATABASE_INDEXED_READ_MS;
     }
-    return operation === "slowRead"
-      ? DATABASE_INDEXED_SLOW_READ_MS
-      : DATABASE_INDEXED_READ_MS;
+  } else if (operation === "write") {
+    duration = DATABASE_WRITE_MS;
+  } else {
+    duration =
+      operation === "slowRead"
+        ? DATABASE_SLOW_READ_MS
+        : DATABASE_READ_MS;
   }
-  if (operation === "write") {
-    return DATABASE_WRITE_MS;
-  }
-  return operation === "slowRead"
-    ? DATABASE_SLOW_READ_MS
-    : DATABASE_READ_MS;
+  return Math.max(TICK_MS, Math.round(duration * multiplier));
 }
 
 function createEmptyDatabaseMetrics(): DatabaseMetrics {
@@ -681,8 +786,12 @@ function startServerRequest(
   request: RequestState,
   at: number,
   events: TrafficEvent[],
+  processingMultiplier: number,
 ): void {
-  request.remainingMs = SERVER_PROCESSING_MS;
+  request.remainingMs = Math.max(
+    TICK_MS,
+    Math.round(SERVER_PROCESSING_MS * processingMultiplier),
+  );
   server.active.push(request);
   server.peakActive = Math.max(server.peakActive, server.active.length);
   events.push({
@@ -702,8 +811,13 @@ function startDatabaseRequest(
   indexed: boolean,
   at: number,
   events: TrafficEvent[],
+  processingMultiplier: number,
 ): void {
-  request.remainingMs = getDatabaseProcessingMs(request.operation, indexed);
+  request.remainingMs = getDatabaseProcessingMs(
+    request.operation,
+    indexed,
+    processingMultiplier,
+  );
   database.active.push(request);
   database.peakActive = Math.max(database.peakActive, database.active.length);
   events.push({
@@ -725,6 +839,10 @@ export function simulateTrafficWave(
   wave: WaveDefinition,
   architecture: ArchitectureConfig,
 ): WaveSimulationResult {
+  const performance = {
+    ...DEFAULT_ARCHITECTURE_PERFORMANCE,
+    ...architecture.performance,
+  };
   const balancedRoute = hasBalancedRoute(architecture);
   const singleServerRoute = hasSingleServerRoute(architecture);
   const effectiveServerCount = balancedRoute ? 2 : singleServerRoute ? 1 : 0;
@@ -838,7 +956,11 @@ export function simulateTrafficWave(
         responses.push({
           request,
           completeAt:
-            now + (balancedRoute ? BALANCED_RESPONSE_MS : DIRECT_RESPONSE_MS),
+            now +
+            Math.round(
+              (balancedRoute ? BALANCED_RESPONSE_MS : DIRECT_RESPONSE_MS) *
+                performance.responseMultiplier,
+            ),
         });
       } else {
         databaseStillActive.push(request);
@@ -853,7 +975,7 @@ export function simulateTrafficWave(
       return true;
     });
     while (
-      database.active.length < DATABASE_CONCURRENCY &&
+      database.active.length < performance.databaseConcurrency &&
       database.queue.length > 0
     ) {
       const request = database.queue.shift();
@@ -864,6 +986,7 @@ export function simulateTrafficWave(
           architecture.databaseIndexed,
           now,
           events,
+          performance.databaseProcessingMultiplier,
         );
       }
     }
@@ -874,16 +997,20 @@ export function simulateTrafficWave(
         failTimeout(pending.request);
         pendingDatabase.splice(index, 1);
       } else if (pending.arriveAt <= now) {
-        const capacity = architecture.databaseIndexed
-          ? DATABASE_INDEXED_QUEUE_CAPACITY
-          : DATABASE_QUEUE_CAPACITY;
-        if (database.active.length < DATABASE_CONCURRENCY) {
+        const capacity = Math.max(
+          performance.databaseQueueCapacity,
+          architecture.databaseIndexed
+            ? DATABASE_INDEXED_QUEUE_CAPACITY
+            : DATABASE_QUEUE_CAPACITY,
+        );
+        if (database.active.length < performance.databaseConcurrency) {
           startDatabaseRequest(
             database,
             pending.request,
             architecture.databaseIndexed,
             now,
             events,
+            performance.databaseProcessingMultiplier,
           );
         } else if (database.queue.length < capacity) {
           database.queue.push(pending.request);
@@ -948,12 +1075,18 @@ export function simulateTrafficWave(
         return true;
       });
       while (
-        server.active.length < SERVER_CONCURRENCY &&
+        server.active.length < performance.serverConcurrency &&
         server.queue.length > 0
       ) {
         const request = server.queue.shift();
         if (request) {
-          startServerRequest(server, request, now, events);
+          startServerRequest(
+            server,
+            request,
+            now,
+            events,
+            performance.serverProcessingMultiplier,
+          );
         }
       }
     }
@@ -965,9 +1098,15 @@ export function simulateTrafficWave(
         pendingServer.splice(index, 1);
       } else if (pending.arriveAt <= now) {
         const server = servers[pending.request.serverId];
-        if (server.active.length < SERVER_CONCURRENCY) {
-          startServerRequest(server, pending.request, now, events);
-        } else if (server.queue.length < SERVER_QUEUE_CAPACITY) {
+        if (server.active.length < performance.serverConcurrency) {
+          startServerRequest(
+            server,
+            pending.request,
+            now,
+            events,
+            performance.serverProcessingMultiplier,
+          );
+        } else if (server.queue.length < performance.serverQueueCapacity) {
           server.queue.push(pending.request);
           server.peakQueue = Math.max(server.peakQueue, server.queue.length);
           events.push({
