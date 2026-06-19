@@ -52,6 +52,7 @@ Source-Commit: <full-commit-sha>
 - [`2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849`](./2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849.md) — 하단 보유 장비 Dock과 상점 가독성 개선
 - [`afd5980ee157a595abd2e71e9c6b9df375c4b4b9`](./afd5980ee157a595abd2e71e9c6b9df375c4b4b9.md) — 상단 요청·응답 I/O와 유료 보드 확장
 - [`59e2ab224c0d0fa0138e28462ab5e499ccda17df`](./59e2ab224c0d0fa0138e28462ab5e499ccda17df.md) — 보드 자유 확대·축소와 화면 이동
+- [`26aa2e67e0b2550f72dd4fa034d70ac62005a761`](./26aa2e67e0b2550f72dd4fa034d70ac62005a761.md) — 밝은 보드 중심 UI 복구와 오토배틀러 성장 시스템
 
 ## 이력 조회
 
