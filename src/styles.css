@@ -266,6 +266,22 @@ summary:focus-visible {
   display: block;
 }
 
+.board-camera-help {
+  position: absolute;
+  z-index: 14;
+  right: 14px;
+  bottom: 12px;
+  padding: 7px 11px;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: rgba(87, 91, 107, 0.82);
+  box-shadow: 0 5px 14px rgba(63, 58, 51, 0.14);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
 .world-loading {
   display: grid;
   width: 100%;

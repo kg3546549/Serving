@@ -53,9 +53,21 @@ interface NodeGesture {
   origin: Phaser.Math.Vector2;
 }
 
+interface BoardPanGesture {
+  pointerX: number;
+  pointerY: number;
+  scrollX: number;
+  scrollY: number;
+}
+
 const WIDTH = 1200;
 const HEIGHT = 720;
 const PLAYBACK_SCALE = 1;
+const BOARD_ZOOM = {
+  min: 0.6,
+  max: 2,
+  step: 0.1,
+};
 const GRID = {
   columns: 13,
   rows: 6,
@@ -107,6 +119,9 @@ export class ArchitectureScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private activePlacementNode: ArchitectureNodeId | null = null;
   private nodeGesture: NodeGesture | null = null;
+  private boardPanGesture: BoardPanGesture | null = null;
+  private isSpacePressed = false;
+  private suppressBoardPanUntilPointerUp = false;
   private moveTargetPosition: GridPosition | null = null;
   private activeTimers: Phaser.Time.TimerEvent[] = [];
   private isWaveRunning = false;
@@ -133,7 +148,9 @@ export class ArchitectureScene extends Phaser.Scene {
     this.createStatusBanner();
     this.bindGameEvents();
     this.bindPointerDrawing();
+    this.bindBoardCameraControls();
     this.applyArchitecture(false);
+    this.syncCameraMetadata();
 
     gameEvents.emit(GAME_EVENTS.SCENE_READY, undefined);
     this.cameras.main.fadeIn(300, 255, 248, 232);
@@ -178,7 +195,104 @@ export class ArchitectureScene extends Phaser.Scene {
       for (const unsubscribe of this.unsubscribers) {
         unsubscribe();
       }
+      this.input.keyboard?.off("keydown-SPACE");
+      this.input.keyboard?.off("keyup-SPACE");
+      this.input.keyboard?.off("keydown-R");
     });
+  }
+
+  private bindBoardCameraControls(): void {
+    this.input.keyboard?.on("keydown-SPACE", () => {
+      this.isSpacePressed = true;
+      this.input.setDefaultCursor("grab");
+    });
+    this.input.keyboard?.on("keyup-SPACE", () => {
+      this.isSpacePressed = false;
+      if (!this.boardPanGesture) {
+        this.input.setDefaultCursor("default");
+      }
+    });
+    this.input.keyboard?.on("keydown-R", () => this.resetBoardView());
+
+    this.input.on(
+      "wheel",
+      (
+        pointer: Phaser.Input.Pointer,
+        _gameObjects: Phaser.GameObjects.GameObject[],
+        _deltaX: number,
+        deltaY: number,
+      ) => {
+        const camera = this.cameras.main;
+        const beforeZoom = camera.getWorldPoint(pointer.x, pointer.y);
+        const cameraCenterX = camera.width / 2;
+        const cameraCenterY = camera.height / 2;
+        const direction = deltaY > 0 ? -1 : 1;
+        const nextZoom = Phaser.Math.Clamp(
+          Number((camera.zoom + direction * BOARD_ZOOM.step).toFixed(2)),
+          BOARD_ZOOM.min,
+          BOARD_ZOOM.max,
+        );
+        if (nextZoom === camera.zoom) {
+          return;
+        }
+        camera.setZoom(nextZoom);
+        camera.scrollX =
+          beforeZoom.x -
+          cameraCenterX -
+          (pointer.x - cameraCenterX) / nextZoom;
+        camera.scrollY =
+          beforeZoom.y -
+          cameraCenterY -
+          (pointer.y - cameraCenterY) / nextZoom;
+        this.syncCameraMetadata();
+      },
+    );
+
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (
+        this.suppressBoardPanUntilPointerUp ||
+        this.activePlacementNode ||
+        this.nodeGesture ||
+        this.isPointerOverNode(pointer.worldX, pointer.worldY)
+      ) {
+        return;
+      }
+      const canPanWithPointer =
+        pointer.button === 1 ||
+        (pointer.button === 0 && this.isSpacePressed) ||
+        pointer.button === 0;
+      if (!canPanWithPointer) {
+        return;
+      }
+      this.boardPanGesture = {
+        pointerX: pointer.x,
+        pointerY: pointer.y,
+        scrollX: this.cameras.main.scrollX,
+        scrollY: this.cameras.main.scrollY,
+      };
+      this.input.setDefaultCursor("grabbing");
+    });
+  }
+
+  private resetBoardView(): void {
+    const camera = this.cameras.main;
+    camera.setZoom(1);
+    camera.setScroll(0, 0);
+    this.boardPanGesture = null;
+    this.input.setDefaultCursor("default");
+    this.syncCameraMetadata();
+    this.statusText.setText("보드 뷰를 초기화했습니다");
+  }
+
+  private syncCameraMetadata(): void {
+    const host = this.game.canvas.parentElement;
+    if (!host) {
+      return;
+    }
+    const camera = this.cameras.main;
+    host.dataset.cameraZoom = camera.zoom.toFixed(2);
+    host.dataset.cameraScrollX = camera.scrollX.toFixed(1);
+    host.dataset.cameraScrollY = camera.scrollY.toFixed(1);
   }
 
   private drawPastelWorld(): void {
@@ -227,7 +341,7 @@ export class ArchitectureScene extends Phaser.Scene {
             this.activePlacementNode &&
             !this.isOccupied(position)
           ) {
-            this.requestPlacement(this.activePlacementNode, position);
+            this.requestPlacement(this.activePlacementNode, position, true);
           }
         });
         this.gridCells.push({ position, center, rectangle });
@@ -501,6 +615,17 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private bindPointerDrawing(): void {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.boardPanGesture && pointer.isDown) {
+        const camera = this.cameras.main;
+        camera.scrollX =
+          this.boardPanGesture.scrollX -
+          (pointer.x - this.boardPanGesture.pointerX) / camera.zoom;
+        camera.scrollY =
+          this.boardPanGesture.scrollY -
+          (pointer.y - this.boardPanGesture.pointerY) / camera.zoom;
+        this.syncCameraMetadata();
+        return;
+      }
       if (!this.nodeGesture) {
         return;
       }
@@ -561,6 +686,16 @@ export class ArchitectureScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (this.suppressBoardPanUntilPointerUp) {
+        this.suppressBoardPanUntilPointerUp = false;
+        return;
+      }
+      if (this.boardPanGesture) {
+        this.boardPanGesture = null;
+        this.input.setDefaultCursor(this.isSpacePressed ? "grab" : "default");
+        this.syncCameraMetadata();
+        return;
+      }
       if (!this.nodeGesture) {
         return;
       }
@@ -810,7 +945,8 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private handleInventoryDrop(payload: InventoryDropPayload): void {
-    const position = this.worldToGrid(payload.x, payload.y);
+    const worldPosition = this.cameras.main.getWorldPoint(payload.x, payload.y);
+    const position = this.worldToGrid(worldPosition.x, worldPosition.y);
     if (
       !position ||
       !isGridPositionAvailable(this.architecture, position) ||
@@ -826,7 +962,9 @@ export class ArchitectureScene extends Phaser.Scene {
   private requestPlacement(
     nodeId: ArchitectureNodeId,
     position: GridPosition,
+    suppressBoardPan = false,
   ): void {
+    this.suppressBoardPanUntilPointerUp = suppressBoardPan;
     gameEvents.emit(GAME_EVENTS.NODE_PLACEMENT_REQUEST, {
       nodeId,
       position,
@@ -854,6 +992,11 @@ export class ArchitectureScene extends Phaser.Scene {
     cell.rectangle.setVisible(available);
     if (!available) {
       return;
+    }
+    if (cell.rectangle.input) {
+      cell.rectangle.input.cursor = this.activePlacementNode
+        ? "pointer"
+        : "grab";
     }
     const occupied = this.isOccupied(position);
     const isMoveTarget =
@@ -1538,6 +1681,19 @@ export class ArchitectureScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  private isPointerOverNode(x: number, y: number): boolean {
+    for (const [nodeId, node] of this.nodes) {
+      if (
+        this.isNodeActive(nodeId) &&
+        Phaser.Math.Distance.Between(x, y, node.container.x, node.container.y) <
+          52
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private emitProgress(): void {

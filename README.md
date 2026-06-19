@@ -44,6 +44,9 @@ Primary DB → App Server A → Response Egress
 - 배치 장비 좌클릭 드래그: 이동
 - 장비 우클릭 또는 Shift+좌클릭 드래그: 링크 연결·해제
 - Traffic Ingress와 Response Egress: 이동 불가, 연결만 가능
+- 마우스 휠: 커서 위치를 중심으로 보드 확대·축소
+- 빈 보드 좌클릭 드래그 또는 휠 버튼 드래그: 보드 화면 이동
+- `R`: 보드 배율과 화면 위치 초기화
 
 ## 포트와 링크 용량
 

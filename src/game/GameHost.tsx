@@ -123,10 +123,15 @@ export function GameHost({
   ]);
 
   return (
-    <div
-      ref={hostRef}
-      className="game-canvas"
-      aria-label="아키텍처 디펜스 게임 월드"
-    />
+    <>
+      <div
+        ref={hostRef}
+        className="game-canvas"
+        aria-label="아키텍처 디펜스 게임 월드"
+      />
+      <div className="board-camera-help" aria-label="보드 화면 조작법">
+        휠 확대·축소 · 빈 보드 드래그 이동 · R 화면 초기화
+      </div>
+    </>
   );
 }

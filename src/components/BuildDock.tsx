@@ -140,6 +140,8 @@ export function BuildDock({
       <footer className="shop-footer">
         <p>
           좌클릭 드래그: 이동 · 우클릭/Shift+드래그: 링크 · 입출구는 고정
+          <br />
+          휠: 보드 확대·축소 · 빈 보드 드래그: 화면 이동
         </p>
         <button
           type="button"

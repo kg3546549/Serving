@@ -74,6 +74,15 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         </details>
 
         <details className="learn-more">
+          <summary>보드를 확대하거나 이동하려면?</summary>
+          <p>
+            마우스 휠로 커서 위치를 중심으로 확대·축소합니다. 장비가 없는
+            보드를 좌클릭 드래그하거나 휠 버튼으로 드래그하면 화면을
+            이동합니다. R 키를 누르면 기본 배율과 위치로 돌아갑니다.
+          </p>
+        </details>
+
+        <details className="learn-more">
           <summary>DB는 무엇을 하나요?</summary>
           <p>
             GET은 DB 읽기, POST는 DB 저장을 수행합니다. DB에도 동시 처리
