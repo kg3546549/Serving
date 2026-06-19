@@ -51,6 +51,7 @@ Source-Commit: <full-commit-sha>
 - [`a88de50eb225069a9026a8ca133c8796721910b5`](./a88de50eb225069a9026a8ca133c8796721910b5.md) — 장비 포트와 링크 용량 제약
 - [`2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849`](./2bf6603a299e5bdb2a5e5cd45052d4dab6e1a849.md) — 하단 보유 장비 Dock과 상점 가독성 개선
 - [`afd5980ee157a595abd2e71e9c6b9df375c4b4b9`](./afd5980ee157a595abd2e71e9c6b9df375c4b4b9.md) — 상단 요청·응답 I/O와 유료 보드 확장
+- [`59e2ab224c0d0fa0138e28462ab5e499ccda17df`](./59e2ab224c0d0fa0138e28462ab5e499ccda17df.md) — 보드 자유 확대·축소와 화면 이동
 
 ## 이력 조회
 
