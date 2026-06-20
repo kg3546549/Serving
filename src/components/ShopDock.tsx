@@ -1,5 +1,5 @@
 import type { WaveDefinition } from "../campaign/campaignData";
-import type { ShopItemType } from "../simulation/trafficSimulation";
+import type { NodeInstance, ShopItemType } from "../simulation/trafficSimulation";
 import {
   isMaintenanceItem,
   MAINTENANCE_CATALOG,
@@ -12,6 +12,7 @@ interface ShopDockProps {
   playerLevel: number;
   playerXp: number;
   shopItems: (ShopItemType | null)[];
+  inventory: (NodeInstance | null)[];
   coins: number;
   disabled: boolean;
   wave: WaveDefinition;
@@ -28,6 +29,7 @@ export function ShopDock({
   playerLevel,
   playerXp,
   shopItems,
+  inventory,
   coins,
   disabled,
   wave,
@@ -106,6 +108,9 @@ export function ShopDock({
           const spec = maintenance
             ? MAINTENANCE_CATALOG[item]
             : SYSTEM_CATALOG[item];
+          const owned =
+            !maintenance &&
+            inventory.some((inventoryItem) => inventoryItem?.type === item);
           const cost = spec.cost;
           const category = maintenance
             ? "PASSIVE"
@@ -119,6 +124,9 @@ export function ShopDock({
               key={`${item}-${index}`}
               onClick={() => {
                 if (!disabled && coins >= cost) {
+                  if (owned) {
+                    return;
+                  }
                   onBuyShopItem(index);
                 }
               }}
@@ -126,7 +134,7 @@ export function ShopDock({
                 event.preventDefault();
                 onInspectItem(item);
               }}
-              aria-disabled={disabled || coins < cost}
+              aria-disabled={disabled || coins < cost || owned}
               title="좌클릭 구매 · 우클릭 상세"
             >
               <span className="shop-offer-icon">
@@ -138,8 +146,16 @@ export function ShopDock({
                 <span>{spec.description}</span>
               </span>
               <span className="shop-offer-price">
-                <small>{maintenance ? "OWN" : tier ? `TIER ${tier}` : "BUY"}</small>
-                <strong>{cost > 0 ? cost : "OWNED"}</strong>
+                <small>
+                  {owned
+                    ? "OWNED"
+                    : maintenance
+                      ? "OWN"
+                      : tier
+                        ? `TIER ${tier}`
+                        : "BUY"}
+                </small>
+                <strong>{owned ? "OWNED" : cost > 0 ? cost : "OWNED"}</strong>
               </span>
             </button>
           );

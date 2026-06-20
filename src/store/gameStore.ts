@@ -155,6 +155,79 @@ const createInitialArchitecture = (): ArchitectureConfig => ({
   performance: { ...DEFAULT_ARCHITECTURE_PERFORMANCE },
 });
 
+function createStarterInventory(): (NodeInstance | null)[] {
+  return [
+    { id: "starter-lb", type: "apiGateway", starLevel: 1 },
+    { id: "starter-server-a", type: "ec2", starLevel: 1 },
+    { id: "starter-server-b", type: "apache", starLevel: 1 },
+    { id: "starter-db", type: "rdsPrimary", starLevel: 1, augment: "dbQuery" },
+    null,
+    null,
+    null,
+    null,
+  ];
+}
+
+function createStarterArchitecture(): ArchitectureConfig {
+  return {
+    serverCount: 2,
+    hasLoadBalancer: true,
+    hasDatabase: true,
+    databaseIndexed: true,
+    linkLevel: 2,
+    boardLevel: 2,
+    nodePositions: {
+      entry: { ...FIXED_ENTRY_POSITION },
+      exit: { ...FIXED_EXIT_POSITION },
+      loadBalancer: { column: 3, row: 0 },
+      serverA: { column: 2, row: 2 },
+      serverB: { column: 4, row: 2 },
+      database: { column: 3, row: 4 },
+    },
+    connections: [
+      { from: "entry", to: "loadBalancer" },
+      { from: "loadBalancer", to: "exit" },
+      { from: "loadBalancer", to: "serverA" },
+      { from: "loadBalancer", to: "serverB" },
+      { from: "serverA", to: "database" },
+      { from: "serverB", to: "database" },
+    ],
+    boardSlots: {
+      loadBalancer: "starter-lb",
+      serverA: "starter-server-a",
+      serverB: "starter-server-b",
+      database: "starter-db",
+    },
+    performance: { ...DEFAULT_ARCHITECTURE_PERFORMANCE },
+  };
+}
+
+function createStarterState(): Pick<
+  GameState,
+  | "coins"
+  | "serviceHp"
+  | "playerLevel"
+  | "playerXp"
+  | "shopItems"
+  | "inventory"
+  | "architecture"
+> {
+  const inventory = createStarterInventory();
+  const architecture = normalizeArchitecture(
+    createStarterArchitecture(),
+    inventory,
+  );
+  return {
+    coins: 145,
+    serviceHp: 61,
+    playerLevel: 2,
+    playerXp: 0,
+    shopItems: ["ec2", "rdsPrimary", "apiGateway", "apache", "redis"],
+    inventory,
+    architecture,
+  };
+}
+
 const initialLiveMetrics = (): LiveWaveMetrics => ({
   completed: 0,
   failed: 0,
@@ -508,7 +581,7 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       phase: "prepare",
       maintenanceMode: "initial",
-      shopItems: rollShopItems(1, true),
+      ...createStarterState(),
     }),
 
   setWorldReady: (worldReady) => set({ worldReady }),
@@ -866,18 +939,12 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       phase: "prepare",
       waveIndex: 0,
-      coins: 240,
-      serviceHp: 100,
-      playerLevel: 1,
-      playerXp: 0,
-      shopItems: rollShopItems(1, true),
-      inventory: Array<NodeInstance | null>(INVENTORY_CAPACITY).fill(null),
+      ...createStarterState(),
       augmentState: null,
       pendingInfrastructureUpgrades: 0,
       maintenanceMode: "initial",
       maintenanceExtensionMs: 0,
       emergencyMaintenanceCharges: 0,
-      architecture: createInitialArchitecture(),
       liveMetrics: initialLiveMetrics(),
       lastResult: null,
     }),

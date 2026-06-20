@@ -60,6 +60,7 @@ export function App(): React.JSX.Element {
   const [prepRemainingMs, setPrepRemainingMs] =
     useState(FIRST_WAVE_PREP_DURATION_MS);
   const autoWaveStartedRef = useRef(false);
+  const autoInspectStarterRef = useRef(false);
 
   const phase = useGameStore((state) => state.phase);
   const waveIndex = useGameStore((state) => state.waveIndex);
@@ -189,6 +190,7 @@ export function App(): React.JSX.Element {
   const handleRestart = useCallback(() => {
     setSelectedNode(null);
     autoWaveStartedRef.current = false;
+    autoInspectStarterRef.current = false;
     setPrepRemainingMs(FIRST_WAVE_PREP_DURATION_MS);
     resetCampaign();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
@@ -269,7 +271,6 @@ export function App(): React.JSX.Element {
 
   const isTimerPaused =
     isHelpOpen ||
-    selectedNode !== null ||
     selectedResource !== null ||
     augmentState !== null ||
     pendingInfrastructureUpgrades > 0;
@@ -283,6 +284,18 @@ export function App(): React.JSX.Element {
     }, 100);
     return () => window.clearInterval(timer);
   }, [isTimerPaused, phase, worldReady]);
+
+  useEffect(() => {
+    if (
+      phase === "prepare" &&
+      waveIndex === 0 &&
+      architecture.hasDatabase &&
+      !autoInspectStarterRef.current
+    ) {
+      autoInspectStarterRef.current = true;
+      setSelectedNode("database");
+    }
+  }, [architecture.hasDatabase, phase, waveIndex]);
 
   useEffect(() => {
     if (
@@ -323,35 +336,39 @@ export function App(): React.JSX.Element {
         />
 
         <section className="board-stage" aria-label="아키텍처 보드">
-          <div className="board-meta board-meta--overlay">
-            <span>BOARD {boardTier.level}</span>
-            <b>{boardTier.columns}×{boardTier.rows}</b>
-            <i />
-            <span>LINK {linkTier.level}</span>
-            <b>{getTotalConnectionCells(architecture)}/{linkTier.totalCells}</b>
-          </div>
-          <div className="world-frame">
-            <Suspense
-              fallback={<div className="world-loading">보드 준비 중...</div>}
-            >
-              <GameHost
-                onReady={handleWorldReady}
-                onWaveProgress={handleWaveProgress}
-                onWaveComplete={handleWaveComplete}
-                onNodePlacement={handleNodePlacement}
-                onConnectionRequest={handleConnectionRequest}
-                onNodeMove={handleNodeMove}
-                onNodeDetails={setSelectedNode}
+          <div className="board-stage-layout">
+            <div className="board-surface">
+              <div className="board-meta board-meta--overlay">
+                <span>BOARD {boardTier.level}</span>
+                <b>{boardTier.columns}×{boardTier.rows}</b>
+                <i />
+                <span>LINK {linkTier.level}</span>
+                <b>{getTotalConnectionCells(architecture)}/{linkTier.totalCells}</b>
+              </div>
+              <div className="world-frame">
+                <Suspense
+                  fallback={<div className="world-loading">보드 준비 중...</div>}
+                >
+                  <GameHost
+                    onReady={handleWorldReady}
+                    onWaveProgress={handleWaveProgress}
+                    onWaveComplete={handleWaveComplete}
+                    onNodePlacement={handleNodePlacement}
+                    onConnectionRequest={handleConnectionRequest}
+                    onNodeMove={handleNodeMove}
+                    onNodeDetails={setSelectedNode}
+                  />
+                </Suspense>
+              </div>
+            </div>
+            {selectedNode && (
+              <NodeDetails
+                nodeId={selectedNode}
+                architecture={architecture}
+                onClose={() => setSelectedNode(null)}
               />
-            </Suspense>
+            )}
           </div>
-          {selectedNode && (
-            <NodeDetails
-              nodeId={selectedNode}
-              architecture={architecture}
-              onClose={() => setSelectedNode(null)}
-            />
-          )}
         </section>
 
         {(phase === "prepare" || phase === "running") && (
@@ -385,6 +402,7 @@ export function App(): React.JSX.Element {
         playerLevel={playerLevel}
         playerXp={playerXp}
         shopItems={shopItems}
+        inventory={inventory}
         coins={coins}
         disabled={phase !== "prepare"}
         wave={wave}

@@ -72,30 +72,30 @@ const BOARD_ZOOM = {
 const GRID = {
   columns: 13,
   rows: 6,
-  left: 45,
-  top: 150,
-  cellWidth: 72,
-  cellHeight: 70,
+  left: 64,
+  top: 132,
+  cellWidth: 122,
+  cellHeight: 94,
 };
 const COLORS = {
   cream: 0xf3f7fc,
   paper: 0xffffff,
   grass: 0xeaf3fe,
-  grid: 0xd9e4ef,
-  ink: 0x2f4466,
-  muted: 0x8191a9,
+  grid: 0xcddcee,
+  ink: 0x243c63,
+  muted: 0x7187a6,
   mint: 0x3fceb0,
   mintDark: 0x1e9f92,
-  blue: 0x4d95ef,
-  blueDark: 0x2377de,
-  purple: 0x9f86e7,
-  purpleDark: 0x7258cb,
-  yellow: 0xf4c45a,
+  blue: 0x3484ec,
+  blueDark: 0x1468d4,
+  purple: 0x9070e4,
+  purpleDark: 0x6847c8,
+  yellow: 0xefbb45,
   orange: 0xea9a32,
   pink: 0xf29aac,
   red: 0xe96b72,
   green: 0x4dbd72,
-  path: 0xcddbef,
+  path: 0xc2d3eb,
 };
 
 export class ArchitectureScene extends Phaser.Scene {
@@ -120,6 +120,8 @@ export class ArchitectureScene extends Phaser.Scene {
   };
   private nodes = new Map<ArchitectureNodeId, NodeView>();
   private gridCells: GridCellView[] = [];
+  private columnLabels: Phaser.GameObjects.Text[] = [];
+  private rowLabels: Phaser.GameObjects.Text[] = [];
   private requestViews = new Map<number, Phaser.GameObjects.Container>();
   private requestTrails = new Map<
     number,
@@ -176,7 +178,6 @@ export class ArchitectureScene extends Phaser.Scene {
     this.time.delayedCall(0, () => this.fitBoardView(false));
 
     gameEvents.emit(GAME_EVENTS.SCENE_READY, undefined);
-    this.cameras.main.fadeIn(300, 255, 248, 232);
   }
 
   private bindGameEvents(): void {
@@ -346,11 +347,11 @@ export class ArchitectureScene extends Phaser.Scene {
     const boardHeight = boardTier.rows * GRID.cellHeight;
     const zoom = Phaser.Math.Clamp(
       Math.min(
-        Math.max(1, camera.width - 70) / (boardWidth + 56),
-        Math.max(1, camera.height - 76) / (boardHeight + 56),
+        Math.max(1, camera.width - 80) / Math.max(1, boardWidth),
+        Math.max(1, camera.height - 82) / Math.max(1, boardHeight),
       ),
-      BOARD_ZOOM.min,
-      1.18,
+      0.74,
+      1.16,
     );
     const boardCenterX =
       GRID.left + boardWidth / 2;
@@ -394,8 +395,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const boardCenterY = GRID.top + boardHeight / 2;
     const viewportWidth = camera.width / camera.zoom;
     const viewportHeight = camera.height / camera.zoom;
-    const width = Math.max(boardWidth + 120, viewportWidth + 4);
-    const height = Math.max(boardHeight + 120, viewportHeight + 4);
+    const width = Math.max(boardWidth + 56, viewportWidth + 4);
+    const height = Math.max(boardHeight + 68, viewportHeight + 4);
     const x = boardCenterX - width / 2;
     const y = boardCenterY - height / 2;
 
@@ -459,18 +460,18 @@ export class ArchitectureScene extends Phaser.Scene {
     const width = boardTier.columns * GRID.cellWidth;
     const height = boardTier.rows * GRID.cellHeight;
     this.boardGraphics.clear();
-    this.boardGraphics.fillStyle(COLORS.cream, 1);
+    this.boardGraphics.fillStyle(0xf7fbff, 1);
     this.boardGraphics.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT * 3);
     this.boardGraphics.fillGradientStyle(0xffffff, 0xffffff, 0xeef5ff, 0xeef5ff, 1);
     this.boardGraphics.fillRect(GRID.left - 56, GRID.top - 78, width + 112, height + 156);
-    this.boardGraphics.lineStyle(1, 0xd7e2ef, 0.45);
+    this.boardGraphics.lineStyle(1, 0xd7e2ef, 0.68);
     for (let x = -WIDTH; x < WIDTH * 2; x += 36) {
       this.boardGraphics.lineBetween(x, -HEIGHT, x, HEIGHT * 2);
     }
     for (let y = -HEIGHT; y < HEIGHT * 2; y += 36) {
       this.boardGraphics.lineBetween(-WIDTH, y, WIDTH * 2, y);
     }
-    this.boardGraphics.fillStyle(0xffffff, 0.95);
+    this.boardGraphics.fillStyle(0xffffff, 0.98);
     this.boardGraphics.fillRoundedRect(
       GRID.left - 20,
       GRID.top - 26,
@@ -489,6 +490,40 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private createGrid(): void {
+    for (let column = 0; column < GRID.columns; column += 1) {
+      const label = this.add
+        .text(
+          GRID.left + GRID.cellWidth / 2 + column * GRID.cellWidth,
+          GRID.top - 18,
+          String(column + 1).padStart(2, "0"),
+          {
+            color: "#97a9bf",
+            fontFamily: "Pretendard",
+            fontSize: "11px",
+            fontStyle: "700",
+          },
+        )
+        .setOrigin(0.5)
+        .setDepth(2);
+      this.columnLabels.push(label);
+    }
+    for (let row = 0; row < GRID.rows; row += 1) {
+      const label = this.add
+        .text(
+          GRID.left - 20,
+          GRID.top + GRID.cellHeight / 2 + row * GRID.cellHeight,
+          String.fromCharCode(65 + row),
+          {
+            color: "#97a9bf",
+            fontFamily: "Pretendard",
+            fontSize: "12px",
+            fontStyle: "700",
+          },
+        )
+        .setOrigin(0.5)
+        .setDepth(2);
+      this.rowLabels.push(label);
+    }
     for (let row = 0; row < GRID.rows; row += 1) {
       for (let column = 0; column < GRID.columns; column += 1) {
         const position = { column, row };
@@ -573,10 +608,10 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createEntryNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
     card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -22, 58, 58, 0x1b79df);
+    const tile = this.add.rectangle(0, -25, 66, 66, 0x1b79df);
     tile.setStrokeStyle(2, 0xffffff, 0.9);
     const icon = this.add.graphics();
     icon.lineStyle(4, 0xffffff, 1);
@@ -598,10 +633,10 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createExitNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
     card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -22, 58, 58, COLORS.purpleDark);
+    const tile = this.add.rectangle(0, -25, 66, 66, COLORS.purpleDark);
     tile.setStrokeStyle(2, 0xffffff, 0.9);
     const icon = this.add.graphics();
     icon.lineStyle(5, 0xffffff, 1);
@@ -623,18 +658,18 @@ export class ArchitectureScene extends Phaser.Scene {
   ): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
     card.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x1b79df, 1);
-    body.fillRoundedRect(-29, -51, 58, 58, 12);
+    body.fillRoundedRect(-33, -58, 66, 66, 14);
     body.lineStyle(3, 0xffffff, 1);
-    body.strokeRoundedRect(-29, -51, 58, 58, 12);
-    body.strokeRect(-15, -37, 30, 23);
-    body.lineBetween(-11, -29, 11, -29);
-    body.lineBetween(-11, -22, 11, -22);
-    body.lineBetween(-11, -15, 11, -15);
+    body.strokeRoundedRect(-33, -58, 66, 66, 14);
+    body.strokeRect(-17, -42, 34, 27);
+    body.lineBetween(-12, -33, 12, -33);
+    body.lineBetween(-12, -25, 12, -25);
+    body.lineBetween(-12, -17, 12, -17);
     const stateText = this.add
       .text(0, 44, "APP", {
         color: "#6e839f",
@@ -660,20 +695,20 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createLoadBalancerNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
     card.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x7258cb, 1);
-    body.fillRoundedRect(-29, -51, 58, 58, 12);
+    body.fillRoundedRect(-33, -58, 66, 66, 14);
     body.lineStyle(3, 0xffffff, 0.95);
-    body.strokeRoundedRect(-29, -51, 58, 58, 12);
+    body.strokeRoundedRect(-33, -58, 66, 66, 14);
     body.lineStyle(4, 0xffffff, 1);
-    body.strokeRect(-7, -29, 14, 14);
-    body.lineBetween(0, -44, 0, -29);
-    body.lineBetween(0, -15, 0, 1);
-    body.lineBetween(-22, -22, -7, -22);
-    body.lineBetween(7, -22, 22, -22);
+    body.strokeRect(-8, -33, 16, 16);
+    body.lineBetween(0, -49, 0, -33);
+    body.lineBetween(0, -17, 0, 1);
+    body.lineBetween(-24, -25, -8, -25);
+    body.lineBetween(8, -25, 24, -25);
     const label = this.createNodeLabel("Load Balancer", 0, 31);
     const sub = this.createNodeSubLabel("RR", 0, 55);
     const dot = this.createNodeStatusDot(35, 16);
@@ -685,19 +720,19 @@ export class ArchitectureScene extends Phaser.Scene {
   private createDatabaseNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
     card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -22, 58, 58, 0x1da4a0);
+    const tile = this.add.rectangle(0, -25, 66, 66, 0x1da4a0);
     tile.setStrokeStyle(2, 0xffffff, 0.9);
     const database = this.add.graphics();
     database.fillStyle(0xffffff, 1);
-    database.fillEllipse(0, -32, 34, 11);
-    database.fillRect(-17, -32, 34, 28);
-    database.fillEllipse(0, -4, 34, 11);
+    database.fillEllipse(0, -37, 38, 12);
+    database.fillRect(-19, -37, 38, 33);
+    database.fillEllipse(0, -4, 38, 12);
     database.lineStyle(2, 0x1da4a0, 1);
-    database.strokeEllipse(0, -22, 34, 11);
-    database.strokeEllipse(0, -12, 34, 11);
+    database.strokeEllipse(0, -25, 38, 12);
+    database.strokeEllipse(0, -14, 38, 12);
     const label = this.createNodeLabel("Primary DB", 0, 31);
     const stateText = this.add
       .text(0, 44, "DB", {
@@ -746,7 +781,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(x, y, text, {
         color: "#274365",
         fontFamily: "Pretendard",
-        fontSize: "11px",
+        fontSize: "12px",
         fontStyle: "700",
       })
       .setOrigin(0.5);
@@ -761,7 +796,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(x, y, text, {
         color: "#6d839f",
         fontFamily: "Pretendard",
-        fontSize: "10px",
+        fontSize: "11px",
         fontStyle: "700",
       })
       .setOrigin(0.5);
@@ -782,7 +817,7 @@ export class ArchitectureScene extends Phaser.Scene {
     container: Phaser.GameObjects.Container,
     nodeId: ArchitectureNodeId,
   ): void {
-    container.setSize(76, 76);
+    container.setSize(92, 92);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerover", () => {
       if (!this.isWaveRunning) {
@@ -1068,6 +1103,13 @@ export class ArchitectureScene extends Phaser.Scene {
   private applyArchitecture(playBuildEffect: boolean): void {
     this.drawPastelWorld();
     this.layoutFixedHud();
+    const boardTier = getBoardTier(this.architecture.boardLevel);
+    this.columnLabels.forEach((label, index) => {
+      label.setVisible(index < boardTier.columns);
+    });
+    this.rowLabels.forEach((label, index) => {
+      label.setVisible(index < boardTier.rows);
+    });
     for (const [nodeId, node] of this.nodes) {
       const gridPosition = this.architecture.nodePositions[nodeId];
       node.container.setVisible(Boolean(gridPosition));
@@ -1101,12 +1143,12 @@ export class ArchitectureScene extends Phaser.Scene {
       const from = this.getNodePosition(connection.from);
       const to = this.getNodePosition(connection.to);
       const flow = getConnectionFlow(connection.from, connection.to);
-      this.pathGraphics.lineStyle(10, COLORS.path, 0.5);
+      this.pathGraphics.lineStyle(10, COLORS.path, 0.72);
       this.drawOrthogonalLine(this.pathGraphics, from, to);
       if (flow === "duplex") {
-        this.pathGraphics.lineStyle(6, COLORS.blue, 0.85);
+        this.pathGraphics.lineStyle(6, COLORS.blue, 0.94);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
-        this.pathGraphics.lineStyle(2, COLORS.purple, 0.95);
+        this.pathGraphics.lineStyle(2, COLORS.purple, 1);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
       } else {
         const pathColor =
@@ -1115,7 +1157,7 @@ export class ArchitectureScene extends Phaser.Scene {
             : flow === "response"
               ? COLORS.purple
               : COLORS.yellow;
-        this.pathGraphics.lineStyle(5, pathColor, 0.92);
+        this.pathGraphics.lineStyle(5, pathColor, 0.98);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
       }
       this.pathGraphics.fillStyle(0xffffff, 0.75);

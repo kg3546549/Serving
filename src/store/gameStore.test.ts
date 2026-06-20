@@ -4,13 +4,14 @@ import { simulateTrafficWave } from "../simulation/trafficSimulation";
 import { useGameStore } from "./gameStore";
 
 describe("campaign store", () => {
-  it("starts with fixed I/O, eight inventory slots, and a small board", () => {
+  it("starts with a staged starter architecture and four deployed devices", () => {
     useGameStore.getState().resetCampaign();
     const state = useGameStore.getState();
 
-    expect(state.inventory).toEqual(Array(8).fill(null));
-    expect(state.architecture.serverCount).toBe(0);
-    expect(state.architecture.hasDatabase).toBe(false);
+    expect(state.inventory.filter(Boolean)).toHaveLength(4);
+    expect(state.architecture.serverCount).toBe(2);
+    expect(state.architecture.hasDatabase).toBe(true);
+    expect(state.architecture.hasLoadBalancer).toBe(true);
     expect(state.architecture.nodePositions.entry).toEqual({
       column: 1,
       row: 0,
@@ -19,15 +20,37 @@ describe("campaign store", () => {
       column: 5,
       row: 0,
     });
-    expect(state.architecture.boardLevel).toBe(1);
+    expect(state.architecture.boardLevel).toBe(2);
+    expect(state.architecture.linkLevel).toBe(2);
   });
 
   it("buys, keeps, places, and connects the minimum architecture", () => {
     useGameStore.getState().resetCampaign();
-    useGameStore.setState({
+    useGameStore.setState((state) => ({
       coins: 1_000,
       shopItems: ["ec2", "rdsPrimary", null, null, null],
-    });
+      inventory: Array(8).fill(null),
+      architecture: {
+        ...state.architecture,
+        serverCount: 0,
+        hasLoadBalancer: false,
+        hasDatabase: false,
+        databaseIndexed: false,
+        linkLevel: 1,
+        boardLevel: 1,
+        connections: [],
+        nodePositions: {
+          entry: { column: 1, row: 0 },
+          exit: { column: 5, row: 0 },
+        },
+        boardSlots: {
+          loadBalancer: null,
+          serverA: null,
+          serverB: null,
+          database: null,
+        },
+      },
+    }));
 
     useGameStore.getState().buyShopItem(0);
     useGameStore.getState().buyShopItem(1);
@@ -69,7 +92,17 @@ describe("campaign store", () => {
 
   it("uses level-up rewards for board and link expansion", () => {
     useGameStore.getState().resetCampaign();
-    useGameStore.setState({ coins: 100 });
+    useGameStore.setState((state) => ({
+      coins: 100,
+      playerLevel: 1,
+      playerXp: 0,
+      pendingInfrastructureUpgrades: 0,
+      architecture: {
+        ...state.architecture,
+        boardLevel: 1,
+        linkLevel: 1,
+      },
+    }));
     useGameStore.getState().buyXp();
 
     expect(useGameStore.getState().playerLevel).toBe(2);
@@ -106,10 +139,29 @@ describe("campaign store", () => {
 
   it("merges three identical units and opens a role-specific augment", () => {
     useGameStore.getState().resetCampaign();
-    useGameStore.setState({
+    useGameStore.setState((state) => ({
       coins: 100,
       shopItems: ["ec2", "ec2", "ec2", null, null],
-    });
+      inventory: Array(8).fill(null),
+      architecture: {
+        ...state.architecture,
+        serverCount: 0,
+        hasLoadBalancer: false,
+        hasDatabase: false,
+        databaseIndexed: false,
+        connections: [],
+        nodePositions: {
+          entry: { column: 1, row: 0 },
+          exit: { column: 5, row: 0 },
+        },
+        boardSlots: {
+          loadBalancer: null,
+          serverA: null,
+          serverB: null,
+          database: null,
+        },
+      },
+    }));
 
     useGameStore.getState().buyShopItem(0);
     useGameStore.getState().buyShopItem(1);
@@ -149,14 +201,31 @@ describe("campaign store", () => {
 
   it("reduces service HP and advances after a failed wave", () => {
     useGameStore.getState().resetCampaign();
-    const result = simulateTrafficWave(
-      STAGE_ONE_WAVES[0],
-      useGameStore.getState().architecture,
-    );
+    useGameStore.setState((state) => ({
+      architecture: {
+        ...state.architecture,
+        serverCount: 0,
+        hasLoadBalancer: false,
+        hasDatabase: false,
+        databaseIndexed: false,
+        connections: [],
+        nodePositions: {
+          entry: { column: 1, row: 0 },
+          exit: { column: 5, row: 0 },
+        },
+        boardSlots: {
+          loadBalancer: null,
+          serverA: null,
+          serverB: null,
+          database: null,
+        },
+      },
+    }));
+    const result = simulateTrafficWave(STAGE_ONE_WAVES[0], useGameStore.getState().architecture);
     useGameStore.setState({ phase: "running" });
 
     useGameStore.getState().completeWave(result);
-    expect(useGameStore.getState().serviceHp).toBe(91);
+    expect(useGameStore.getState().serviceHp).toBe(52);
     expect(useGameStore.getState().phase).toBe("result");
 
     useGameStore.getState().continueAfterResult();
