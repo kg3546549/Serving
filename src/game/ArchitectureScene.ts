@@ -78,24 +78,24 @@ const GRID = {
   cellHeight: 70,
 };
 const COLORS = {
-  cream: 0x142238,
-  paper: 0xf6f8f1,
-  grass: 0xdcefc3,
-  grid: 0xaabbb5,
-  ink: 0x5b5d69,
-  muted: 0x96939c,
-  mint: 0x7dd9be,
-  mintDark: 0x49ae91,
-  blue: 0x88b8ef,
-  blueDark: 0x598bc4,
-  purple: 0xb4a1e5,
-  purpleDark: 0x7862b7,
-  yellow: 0xf6d477,
-  orange: 0xf3a66c,
+  cream: 0xf3f7fc,
+  paper: 0xffffff,
+  grass: 0xeaf3fe,
+  grid: 0xd9e4ef,
+  ink: 0x2f4466,
+  muted: 0x8191a9,
+  mint: 0x3fceb0,
+  mintDark: 0x1e9f92,
+  blue: 0x4d95ef,
+  blueDark: 0x2377de,
+  purple: 0x9f86e7,
+  purpleDark: 0x7258cb,
+  yellow: 0xf4c45a,
+  orange: 0xea9a32,
   pink: 0xf29aac,
-  red: 0xe86d7e,
-  green: 0x79cf94,
-  path: 0x344a65,
+  red: 0xe96b72,
+  green: 0x4dbd72,
+  path: 0xcddbef,
 };
 
 export class ArchitectureScene extends Phaser.Scene {
@@ -153,7 +153,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor("#142238");
+    this.cameras.main.setBackgroundColor("#f3f7fc");
     this.input.mouse?.disableContextMenu();
     this.createVfxTextures();
     this.boardGraphics = this.add.graphics().setDepth(0);
@@ -461,28 +461,30 @@ export class ArchitectureScene extends Phaser.Scene {
     this.boardGraphics.clear();
     this.boardGraphics.fillStyle(COLORS.cream, 1);
     this.boardGraphics.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT * 3);
-    this.boardGraphics.lineStyle(1, 0x29405d, 0.28);
+    this.boardGraphics.fillGradientStyle(0xffffff, 0xffffff, 0xeef5ff, 0xeef5ff, 1);
+    this.boardGraphics.fillRect(GRID.left - 56, GRID.top - 78, width + 112, height + 156);
+    this.boardGraphics.lineStyle(1, 0xd7e2ef, 0.45);
     for (let x = -WIDTH; x < WIDTH * 2; x += 36) {
       this.boardGraphics.lineBetween(x, -HEIGHT, x, HEIGHT * 2);
     }
     for (let y = -HEIGHT; y < HEIGHT * 2; y += 36) {
       this.boardGraphics.lineBetween(-WIDTH, y, WIDTH * 2, y);
     }
-    this.boardGraphics.fillStyle(0x0b1323, 0.46);
+    this.boardGraphics.fillStyle(0xffffff, 0.95);
     this.boardGraphics.fillRoundedRect(
-      GRID.left - 32,
-      GRID.top - 32,
-      width + 64,
-      height + 64,
-      22,
+      GRID.left - 20,
+      GRID.top - 26,
+      width + 40,
+      height + 52,
+      24,
     );
-    this.boardGraphics.lineStyle(4, 0x6f8dad, 0.85);
+    this.boardGraphics.lineStyle(2, 0xd6e2ef, 1);
     this.boardGraphics.strokeRoundedRect(
-      GRID.left - 24,
-      GRID.top - 24,
-      width + 48,
-      height + 48,
-      18,
+      GRID.left - 20,
+      GRID.top - 26,
+      width + 40,
+      height + 52,
+      24,
     );
   }
 
@@ -495,12 +497,12 @@ export class ArchitectureScene extends Phaser.Scene {
           .rectangle(
             center.x,
             center.y,
-            GRID.cellWidth - 8,
-            GRID.cellHeight - 8,
+            GRID.cellWidth - 6,
+            GRID.cellHeight - 6,
             COLORS.paper,
-            0.68,
+            0.72,
           )
-          .setStrokeStyle(2, COLORS.grid, 0.52)
+          .setStrokeStyle(1.5, COLORS.grid, 0.9)
           .setDepth(1)
           .setInteractive({ useHandCursor: true });
 
@@ -571,37 +573,45 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createEntryNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 38, 72, 16, 0x36556f, 0.14);
-    const tile = this.add.rectangle(0, 0, 66, 66, 0x0078d4);
-    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    card.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, -22, 58, 58, 0x1b79df);
+    tile.setStrokeStyle(2, 0xffffff, 0.9);
     const icon = this.add.graphics();
     icon.lineStyle(4, 0xffffff, 1);
-    icon.strokeCircle(-12, -9, 7);
-    icon.strokeCircle(12, -9, 7);
+    icon.strokeCircle(-10, -29, 7);
+    icon.strokeCircle(10, -29, 7);
     icon.beginPath();
-    icon.arc(-12, 18, 13, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.arc(-10, -3, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
     icon.strokePath();
     icon.beginPath();
-    icon.arc(12, 18, 13, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.arc(10, -3, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
     icon.strokePath();
-    const label = this.createNodeLabel("Traffic Ingress · FIXED", 0, 50);
-    container.add([shadow, tile, icon, label]);
+    const label = this.createNodeLabel("Traffic Ingress", 0, 31);
+    const sub = this.createNodeSubLabel("FIXED", 0, 55);
+    const dot = this.createNodeStatusDot(35, 16);
+    container.add([shadow, card, tile, icon, label, sub, dot]);
     this.makeConnectable(container, "entry");
     return { id: "entry", container };
   }
 
   private createExitNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 38, 72, 16, 0x36556f, 0.14);
-    const tile = this.add.rectangle(0, 0, 66, 66, COLORS.purpleDark);
-    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    card.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, -22, 58, 58, COLORS.purpleDark);
+    tile.setStrokeStyle(2, 0xffffff, 0.9);
     const icon = this.add.graphics();
     icon.lineStyle(5, 0xffffff, 1);
-    icon.strokeCircle(0, 0, 19);
-    icon.lineBetween(-10, 0, -2, 9);
-    icon.lineBetween(-2, 9, 13, -9);
-    const label = this.createNodeLabel("Response Egress · FIXED", 0, 50);
-    container.add([shadow, tile, icon, label]);
+    icon.strokeCircle(0, -22, 17);
+    icon.lineBetween(-8, -22, -1, -14);
+    icon.lineBetween(-1, -14, 11, -28);
+    const label = this.createNodeLabel("Response Egress", 0, 31);
+    const sub = this.createNodeSubLabel("FIXED", 0, 55);
+    const dot = this.createNodeStatusDot(35, 16);
+    container.add([shadow, card, tile, icon, label, sub, dot]);
     this.makeConnectable(container, "exit");
     return { id: "exit", container };
   }
@@ -613,56 +623,61 @@ export class ArchitectureScene extends Phaser.Scene {
   ): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 39, 78, 16, 0x36556f, 0.14);
+    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    card.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
-    body.fillStyle(0x0078d4, 1);
-    body.fillRect(-34, -32, 68, 64);
-    body.lineStyle(3, 0xffffff, 0.9);
-    body.strokeRect(-34, -32, 68, 64);
-    body.lineStyle(4, 0xffffff, 1);
-    body.strokeRect(-22, -18, 44, 29);
-    body.lineBetween(-13, 20, 13, 20);
-    body.lineBetween(0, 11, 0, 20);
+    body.fillStyle(0x1b79df, 1);
+    body.fillRoundedRect(-29, -51, 58, 58, 12);
+    body.lineStyle(3, 0xffffff, 1);
+    body.strokeRoundedRect(-29, -51, 58, 58, 12);
+    body.strokeRect(-15, -37, 30, 23);
+    body.lineBetween(-11, -29, 11, -29);
+    body.lineBetween(-11, -22, 11, -22);
+    body.lineBetween(-11, -15, 11, -15);
     const stateText = this.add
-      .text(0, -1, "APP", {
-        color: "#ffffff",
-        fontFamily: "Arial",
-        fontSize: "12px",
-        fontStyle: "bold",
+      .text(0, 44, "APP", {
+        color: "#6e839f",
+        fontFamily: "Pretendard",
+        fontSize: "9px",
+        fontStyle: "700",
       })
       .setOrigin(0.5);
-    const label = this.createNodeLabel(title, 0, 48);
+    const label = this.createNodeLabel(title, 0, 31);
     const queueText = this.add
-      .text(0, 62, "대기 0", {
-        color: "#7f8290",
-        fontFamily: "Trebuchet MS",
-        fontSize: "11px",
-        fontStyle: "bold",
-        backgroundColor: "#fffdf8",
-        padding: { x: 6, y: 3 },
+      .text(0, 54, "QUEUE 0", {
+        color: "#6e839f",
+        fontFamily: "Pretendard",
+        fontSize: "10px",
+        fontStyle: "700",
       })
       .setOrigin(0.5);
-    container.add([pressure, shadow, body, stateText, label, queueText]);
+    const dot = this.createNodeStatusDot(35, 16);
+    container.add([pressure, shadow, card, body, label, stateText, queueText, dot]);
     this.makeConnectable(container, id);
     return { id, container, pressure, queueText, stateText };
   }
 
   private createLoadBalancerNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 38, 74, 16, 0x36556f, 0.14);
+    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    card.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
-    body.fillStyle(0x5c2d91, 1);
-    body.fillRect(-33, -32, 66, 64);
-    body.lineStyle(3, 0xffffff, 0.9);
-    body.strokeRect(-33, -32, 66, 64);
+    body.fillStyle(0x7258cb, 1);
+    body.fillRoundedRect(-29, -51, 58, 58, 12);
+    body.lineStyle(3, 0xffffff, 0.95);
+    body.strokeRoundedRect(-29, -51, 58, 58, 12);
     body.lineStyle(4, 0xffffff, 1);
-    body.strokeRect(-7, -7, 14, 14);
-    body.lineBetween(0, -27, 0, -7);
-    body.lineBetween(0, 7, 0, 27);
-    body.lineBetween(-27, 0, -7, 0);
-    body.lineBetween(7, 0, 27, 0);
-    const label = this.createNodeLabel("Load Balancer", 0, 49);
-    container.add([shadow, body, label]);
+    body.strokeRect(-7, -29, 14, 14);
+    body.lineBetween(0, -44, 0, -29);
+    body.lineBetween(0, -15, 0, 1);
+    body.lineBetween(-22, -22, -7, -22);
+    body.lineBetween(7, -22, 22, -22);
+    const label = this.createNodeLabel("Load Balancer", 0, 31);
+    const sub = this.createNodeSubLabel("RR", 0, 55);
+    const dot = this.createNodeStatusDot(35, 16);
+    container.add([shadow, card, body, label, sub, dot]);
     this.makeConnectable(container, "loadBalancer");
     return { id: "loadBalancer", container };
   }
@@ -670,44 +685,47 @@ export class ArchitectureScene extends Phaser.Scene {
   private createDatabaseNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 39, 72, 16, 0x36556f, 0.14);
-    const tile = this.add.rectangle(0, 0, 66, 66, 0x0089d6);
-    tile.setStrokeStyle(3, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 52, 88, 18, 0x5c7aa0, 0.12);
+    const card = this.add.rectangle(0, 8, 98, 104, 0xffffff);
+    card.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, -22, 58, 58, 0x1da4a0);
+    tile.setStrokeStyle(2, 0xffffff, 0.9);
     const database = this.add.graphics();
     database.fillStyle(0xffffff, 1);
-    database.fillEllipse(0, -17, 38, 13);
-    database.fillRect(-19, -17, 38, 34);
-    database.fillEllipse(0, 17, 38, 13);
-    database.lineStyle(2, 0x0089d6, 1);
-    database.strokeEllipse(0, -5, 38, 13);
-    database.strokeEllipse(0, 7, 38, 13);
-    const label = this.createNodeLabel("Primary DB", 0, 50);
+    database.fillEllipse(0, -32, 34, 11);
+    database.fillRect(-17, -32, 34, 28);
+    database.fillEllipse(0, -4, 34, 11);
+    database.lineStyle(2, 0x1da4a0, 1);
+    database.strokeEllipse(0, -22, 34, 11);
+    database.strokeEllipse(0, -12, 34, 11);
+    const label = this.createNodeLabel("Primary DB", 0, 31);
     const stateText = this.add
-      .text(0, 0, "DB", {
-        color: "#0074a8",
-        fontFamily: "Arial",
-        fontSize: "10px",
-        fontStyle: "bold",
+      .text(0, 44, "DB", {
+        color: "#6e839f",
+        fontFamily: "Pretendard",
+        fontSize: "9px",
+        fontStyle: "700",
       })
       .setOrigin(0.5);
     const queueText = this.add
-      .text(0, 62, "대기 0", {
-        color: "#7f8290",
-        fontFamily: "Trebuchet MS",
-        fontSize: "11px",
-        fontStyle: "bold",
-        backgroundColor: "#fffdf8",
-        padding: { x: 6, y: 3 },
+      .text(0, 54, "QUEUE 0", {
+        color: "#6e839f",
+        fontFamily: "Pretendard",
+        fontSize: "10px",
+        fontStyle: "700",
       })
       .setOrigin(0.5);
+    const dot = this.createNodeStatusDot(35, 16);
     container.add([
       pressure,
       shadow,
+      card,
       tile,
       database,
       stateText,
       label,
       queueText,
+      dot,
     ]);
     this.makeConnectable(container, "database");
     return {
@@ -726,14 +744,38 @@ export class ArchitectureScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     return this.add
       .text(x, y, text, {
-        color: "#e8f3ff",
-        fontFamily: "Trebuchet MS",
+        color: "#274365",
+        fontFamily: "Pretendard",
         fontSize: "11px",
-        fontStyle: "bold",
-        backgroundColor: "#0c182a",
-        padding: { x: 6, y: 3 },
+        fontStyle: "700",
       })
       .setOrigin(0.5);
+  }
+
+  private createNodeSubLabel(
+    text: string,
+    x: number,
+    y: number,
+  ): Phaser.GameObjects.Text {
+    return this.add
+      .text(x, y, text, {
+        color: "#6d839f",
+        fontFamily: "Pretendard",
+        fontSize: "10px",
+        fontStyle: "700",
+      })
+      .setOrigin(0.5);
+  }
+
+  private createNodeStatusDot(
+    x: number,
+    y: number,
+  ): Phaser.GameObjects.Container {
+    const dot = this.add.container(x, y);
+    const outer = this.add.circle(0, 0, 6.5, 0xffffff, 1);
+    const inner = this.add.circle(0, 0, 4.5, COLORS.green, 1);
+    dot.add([outer, inner]);
+    return dot;
   }
 
   private makeConnectable(
@@ -990,8 +1032,8 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createStatusBanner(): void {
     this.statusPanel = this.add
-      .rectangle(0, 0, 420, 34, 0x0b1425, 0.88)
-      .setStrokeStyle(2, 0x7195b9, 0.72)
+      .rectangle(0, 0, 420, 34, 0xffffff, 0.96)
+      .setStrokeStyle(1, 0xd8e3ef, 1)
       .setDepth(20);
     this.statusText = this.add
       .text(
@@ -999,10 +1041,10 @@ export class ArchitectureScene extends Phaser.Scene {
         0,
         "우클릭 상세 · 우클릭 드래그 링크 · 좌클릭 드래그 이동",
         {
-          color: "#d9eaff",
-          fontFamily: "Trebuchet MS",
+          color: "#617790",
+          fontFamily: "Pretendard",
           fontSize: "12px",
-          fontStyle: "bold",
+          fontStyle: "700",
         },
       )
       .setOrigin(0.5)
@@ -1059,12 +1101,12 @@ export class ArchitectureScene extends Phaser.Scene {
       const from = this.getNodePosition(connection.from);
       const to = this.getNodePosition(connection.to);
       const flow = getConnectionFlow(connection.from, connection.to);
-      this.pathGraphics.lineStyle(13, COLORS.path, 0.62);
+      this.pathGraphics.lineStyle(10, COLORS.path, 0.5);
       this.drawOrthogonalLine(this.pathGraphics, from, to);
       if (flow === "duplex") {
-        this.pathGraphics.lineStyle(8, COLORS.blue, 0.95);
+        this.pathGraphics.lineStyle(6, COLORS.blue, 0.85);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
-        this.pathGraphics.lineStyle(3, COLORS.purple, 1);
+        this.pathGraphics.lineStyle(2, COLORS.purple, 0.95);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
       } else {
         const pathColor =
@@ -1073,7 +1115,7 @@ export class ArchitectureScene extends Phaser.Scene {
             : flow === "response"
               ? COLORS.purple
               : COLORS.yellow;
-        this.pathGraphics.lineStyle(6, pathColor, 0.95);
+        this.pathGraphics.lineStyle(5, pathColor, 0.92);
         this.drawOrthogonalLine(this.pathGraphics, from, to);
       }
       this.pathGraphics.fillStyle(0xffffff, 0.75);
@@ -1209,13 +1251,13 @@ export class ArchitectureScene extends Phaser.Scene {
     const active =
       (Boolean(this.activePlacementNode) && !occupied) || isMoveTarget;
     cell.rectangle.setFillStyle(
-      occupied ? 0xf0eadc : active ? 0xe5f6ec : COLORS.paper,
-      occupied ? 0.55 : active ? 0.98 : 0.9,
+      occupied ? 0xf4f7fb : active ? 0xe9f7f3 : COLORS.paper,
+      occupied ? 0.8 : active ? 1 : 0.86,
     );
     cell.rectangle.setStrokeStyle(
-      active ? 4 : 2,
+      active ? 2.5 : 1.5,
       active ? COLORS.mint : COLORS.grid,
-      active ? 1 : 0.52,
+      active ? 1 : 0.9,
     );
   }
 

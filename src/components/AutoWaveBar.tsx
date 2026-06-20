@@ -39,10 +39,10 @@ export function AutoWaveBar({
         {phase === "running" ? "Ⅱ" : "▶"}
       </div>
       <div className="auto-wave-copy">
-        <span>{phase === "running" ? "WAVE 진행 중" : maintenanceLabel}</span>
+        <span>{phase === "running" ? "WAVE 진행 중" : `${maintenanceLabel} 진행 중`}</span>
         <strong>
           {phase === "running"
-            ? "정상 운영을 계속합니다."
+            ? "정해진 흐름에 따라 서비스가 계속 진행됩니다."
             : paused
               ? "정보창을 닫으면 점검시간이 계속됩니다."
               : `${String(seconds).padStart(2, "0")}초 후 서비스를 개시합니다.`}

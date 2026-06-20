@@ -55,13 +55,14 @@ export function ShopDock({
         </div>
         <div>
           <strong>인프라 상점</strong>
-          <span>좌클릭 구매 · 우클릭 상세</span>
+          <span>인프라를 구매하고 배치하세요.</span>
         </div>
       </header>
 
       <section className="wave-brief">
         <span>WAVE {String(wave.id).padStart(2, "0")} · {wave.protocol}</span>
         <strong>{wave.name}</strong>
+        <p>{wave.description}</p>
       </section>
 
       <section className="shop-level-panel" aria-label="플레이어 레벨">
@@ -132,12 +133,13 @@ export function ShopDock({
                 <ResourceIcon type={item} />
               </span>
               <span className="shop-offer-copy">
-                <small>{tier ? `TIER ${tier}` : category}</small>
+                <small>{tier ? category : "MAINTENANCE"}</small>
                 <strong>{spec.name}</strong>
+                <span>{spec.description}</span>
               </span>
               <span className="shop-offer-price">
-                <small>{maintenance ? "PASSIVE" : "BUY"}</small>
-                <strong>{cost}</strong>
+                <small>{maintenance ? "OWN" : tier ? `TIER ${tier}` : "BUY"}</small>
+                <strong>{cost > 0 ? cost : "OWNED"}</strong>
               </span>
             </button>
           );

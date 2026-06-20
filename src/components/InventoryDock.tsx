@@ -58,6 +58,15 @@ function InventoryCard({
   const suppressClickRef = useRef(false);
   const spec = SYSTEM_CATALOG[item.type];
   const deployable = preferredRole !== null;
+  const roleLabel = deployedRole
+    ? deployedRole === "database"
+      ? "QUEUE 2"
+      : deployedRole === "loadBalancer"
+        ? "Round Robin"
+        : "QUEUE 0"
+    : deployable
+      ? "드래그하여 배치"
+      : "패시브 적용";
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent): void => {
@@ -139,11 +148,13 @@ function InventoryCard({
         <ResourceIcon type={item.type} />
       </span>
       <span className="inventory-card-copy">
+        <small>{spec.category.toUpperCase()}</small>
         <strong>{spec.name}</strong>
-        <em>
+        <em>{roleLabel}</em>
+        <b>
           {"★".repeat(item.starLevel)}
           {item.augment ? ` · ${item.augment}` : ""}
-        </em>
+        </b>
       </span>
     </button>
   );

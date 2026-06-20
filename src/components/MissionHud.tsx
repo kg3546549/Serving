@@ -31,6 +31,9 @@ export function MissionHud({
   const settledRequests = liveMetrics.completed + liveMetrics.failed;
   const progressPercent =
     waveTotal === 0 ? 0 : Math.min(100, (settledRequests / waveTotal) * 100);
+  const requestValue = isRunning
+    ? `${settledRequests} / 초`
+    : `${waveTotal} / 초`;
 
   return (
     <header className="mission-hud">
@@ -44,9 +47,12 @@ export function MissionHud({
         </div>
         <div className="mission-copy">
           <strong>{stageName}</strong>
+          <span className="mission-copy-subtitle">
+            HTTPS 엔드포인트를 제공하는 기본 API 아키텍처를 구축하세요.
+          </span>
           <div className="mission-description">
-            <button type="button" onClick={onHelp}>
-              ?
+            <button type="button" onClick={onHelp} aria-label="도움말 열기">
+              i
             </button>
           </div>
         </div>
@@ -72,11 +78,7 @@ export function MissionHud({
         </span>
         <span className="mini-resource traffic" aria-live="polite">
           <small>REQUESTS</small>
-          <strong>
-            {isRunning
-              ? `${liveMetrics.completed + liveMetrics.failed} / ${waveTotal}`
-              : waveTotal}
-          </strong>
+          <strong>{requestValue}</strong>
         </span>
         <span className="mini-resource credits" aria-label={`보유 재화 ${coins}`}>
           <small>CREDITS</small>
