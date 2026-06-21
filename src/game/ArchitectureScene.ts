@@ -68,6 +68,7 @@ interface NodeGesture {
   dragged: boolean;
   mode: "move" | "connect";
   origin: Phaser.Math.Vector2;
+  button?: number;
 }
 
 interface BoardPanGesture {
@@ -824,6 +825,7 @@ export class ArchitectureScene extends Phaser.Scene {
           dragged: false,
           mode,
           origin: this.getNodePosition(nodeId),
+          button: pointer.button,
         };
         this.statusText.setText(
           mode === "connect"
@@ -1001,6 +1003,11 @@ export class ArchitectureScene extends Phaser.Scene {
         pointer.worldY,
       );
       const isSimpleClick = movementDistance < 15;
+
+      if (gesture.button === 2 && isSimpleClick) {
+        return;
+      }
+
       const resolution = resolveNodeGesture({
         mode: gesture.mode,
         dragged: gesture.dragged || !isSimpleClick,
@@ -1517,6 +1524,25 @@ export class ArchitectureScene extends Phaser.Scene {
         : operation === "write"
           ? COLORS.purple
           : COLORS.blue;
+
+    const entryNode = this.nodes.get("entry");
+    if (entryNode) {
+      const pulseRing = this.add.graphics();
+      pulseRing.lineStyle(2.5, color, 0.95);
+      pulseRing.strokeCircle(0, 0, 24);
+      entryNode.container.add(pulseRing);
+      entryNode.container.sendToBack(pulseRing);
+      this.tweens.add({
+        targets: pulseRing,
+        scaleX: 2.1,
+        scaleY: 2.1,
+        alpha: 0,
+        duration: 480,
+        onComplete: () => pulseRing.destroy()
+      });
+      this.playParticleBurst(entry.x, entry.y, color, 8);
+    }
+
     const container = this.add.container(entry.x, entry.y).setDepth(12);
     const shadow = this.add.ellipse(0, 13, 34, 8, 0x35526c, 0.18);
     const card = this.add.rectangle(0, 0, 34, 27, 0xffffff, 1);
@@ -2175,6 +2201,27 @@ export class ArchitectureScene extends Phaser.Scene {
     return points[points.length - 1];
   }
 
+  private playMoneyFlyEffect(x: number, y: number): void {
+    const text = this.add.text(x, y - 20, "+1$", {
+      fontFamily: "Pretendard, Arial",
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#1da4a0",
+      stroke: "#ffffff",
+      strokeThickness: 3
+    }).setOrigin(0.5).setDepth(15);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 75,
+      alpha: 0,
+      scale: 1.15,
+      duration: 750,
+      ease: "Cubic.Out",
+      onComplete: () => text.destroy()
+    });
+  }
+
   private presentRuntimeState(state: RuntimeSimulationState): void {
     for (const packet of state.packets) {
       const previousPhase = this.runtimePacketPhases.get(packet.id);
@@ -2190,10 +2237,21 @@ export class ArchitectureScene extends Phaser.Scene {
         if (request) {
           this.playParticleBurst(request.x, request.y, 0xe86d7e, 12);
         }
+        this.cameras.main.shake(150, 0.006);
+        this.cameras.main.flash(180, 239, 86, 112, false);
         this.failRequest(packet.id, "DROP");
       } else if (packet.phase === "timedOut") {
+        this.cameras.main.shake(150, 0.006);
+        this.cameras.main.flash(180, 239, 86, 112, false);
         this.failRequest(packet.id, "TIMEOUT");
       } else if (packet.phase === "completed") {
+        const request = this.requestViews.get(packet.id);
+        if (request) {
+          this.playMoneyFlyEffect(request.x, request.y);
+        } else {
+          const exitPos = this.getNodePosition("exit");
+          this.playMoneyFlyEffect(exitPos.x, exitPos.y);
+        }
         this.completeRequest(packet.id);
       }
       this.runtimePacketPhases.set(packet.id, packet.phase);

@@ -260,6 +260,26 @@ export function App(): React.JSX.Element {
   );
 
   useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    window.addEventListener("contextmenu", handleContextMenu);
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, []);
+
+  const prevHpRef = useRef(serviceHp);
+  const [isScreenDamaged, setIsScreenDamaged] = useState(false);
+
+  useEffect(() => {
+    if (serviceHp < prevHpRef.current) {
+      setIsScreenDamaged(true);
+      const timer = setTimeout(() => setIsScreenDamaged(false), 400);
+      return () => clearTimeout(timer);
+    }
+    prevHpRef.current = serviceHp;
+  }, [serviceHp]);
+
+  useEffect(() => {
     if (worldReady) {
       gameEvents.emit(GAME_EVENTS.CONFIGURE_ARCHITECTURE, { architecture });
     }
@@ -334,7 +354,7 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <main className="infra-game">
+    <main className={`infra-game ${isScreenDamaged ? "screen-damaged-shake" : ""}`}>
       <section className="infra-main">
         <MissionHud
           stageNumber={ACTIVE_STAGE.id}

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { NetworkProtocol } from "../campaign/campaignData";
 import type { LiveWaveMetrics } from "../store/gameStore";
 
@@ -28,6 +29,30 @@ export function MissionHud({
   isRunning,
   onHelp,
 }: MissionHudProps): React.JSX.Element {
+  const prevHpRef = useRef(serviceHp);
+  const [isDamaged, setIsDamaged] = useState(false);
+
+  useEffect(() => {
+    if (serviceHp < prevHpRef.current) {
+      setIsDamaged(true);
+      const timer = setTimeout(() => setIsDamaged(false), 500);
+      return () => clearTimeout(timer);
+    }
+    prevHpRef.current = serviceHp;
+  }, [serviceHp]);
+
+  const prevCoinsRef = useRef(coins);
+  const [isCoinsGained, setIsCoinsGained] = useState(false);
+
+  useEffect(() => {
+    if (coins > prevCoinsRef.current) {
+      setIsCoinsGained(true);
+      const timer = setTimeout(() => setIsCoinsGained(false), 400);
+      return () => clearTimeout(timer);
+    }
+    prevCoinsRef.current = coins;
+  }, [coins]);
+
   const settledRequests = liveMetrics.completed + liveMetrics.failed;
   const progressPercent =
     waveTotal === 0 ? 0 : Math.min(100, (settledRequests / waveTotal) * 100);
@@ -72,15 +97,37 @@ export function MissionHud({
       </div>
 
       <div className="mini-resources">
-        <span className="mini-resource hp" aria-label={`서비스 HP ${serviceHp}`}>
-          <small>SERVICE HP</small>
-          <strong>{serviceHp} / 100</strong>
+        <span 
+          className={`mini-resource hp ${isDamaged ? "hp-damaged-shake" : ""}`} 
+          aria-label={`서비스 HP ${serviceHp}`}
+          style={{ display: "flex", flexDirection: "column", gap: "5px" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
+            <small>SERVICE HP</small>
+            <strong style={{ fontSize: "14px" }}>{serviceHp} / 100</strong>
+          </div>
+          <div style={{
+            width: "100%",
+            height: "6px",
+            background: "rgba(239, 92, 112, 0.15)",
+            borderRadius: "3px",
+            overflow: "hidden",
+            border: "1px solid rgba(239, 92, 112, 0.25)"
+          }}>
+            <div style={{
+              width: `${serviceHp}%`,
+              height: "100%",
+              background: "linear-gradient(90deg, #ef5c70, #ff8fa2)",
+              borderRadius: "3px",
+              transition: "width 0.3s ease-out"
+            }} />
+          </div>
         </span>
         <span className="mini-resource traffic" aria-live="polite">
           <small>REQUESTS</small>
           <strong>{requestValue}</strong>
         </span>
-        <span className="mini-resource credits" aria-label={`보유 재화 ${coins}`}>
+        <span className={`mini-resource credits ${isCoinsGained ? "credits-gain-bounce" : ""}`} aria-label={`보유 재화 ${coins}`}>
           <small>CREDITS</small>
           <strong>{coins}</strong>
         </span>
