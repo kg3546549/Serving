@@ -80,48 +80,45 @@
 .mission-stage {
   display: flex;
   min-width: 0;
-  align-items: stretch;
-  overflow: visible;
-  border-radius: 18px;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  padding: 8px 12px;
+  gap: 12px;
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-line);
 }
 
 .infra-game .stage-chip {
   position: relative;
-  display: grid;
-  width: 116px;
-  flex: 0 0 116px;
-  place-content: center;
-  gap: 2px;
-  border: 0;
-  border-radius: 18px 0 0 18px;
-  background: linear-gradient(180deg, var(--ui-purple), var(--ui-purple-strong));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--ui-purple);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--ui-purple) 12%, transparent);
   box-shadow: none;
-  color: #fff;
-  text-align: center;
+  color: var(--ui-purple);
 }
 
 .infra-game .stage-chip::after {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  width: 18px;
-  height: 100%;
-  background: inherit;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-  content: "";
+  display: none !important;
 }
 
 .infra-game .stage-chip small {
   margin: 0;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
+  color: var(--ui-purple);
 }
 
 .infra-game .stage-chip span {
-  font-size: 34px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
+  color: var(--ui-purple);
 }
 
 .mission-copy {
@@ -129,8 +126,8 @@
   display: grid;
   min-width: 0;
   align-content: center;
-  gap: 4px;
-  padding: 0 24px 0 20px;
+  gap: 2px;
+  padding: 0;
 }
 
 .mission-copy strong {
@@ -1359,7 +1356,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle, rgba(239, 92, 112, 0) 40%, rgba(239, 92, 112, 0.45) 100%);
+  background: rgba(239, 92, 112, 0.42);
   pointer-events: none;
   z-index: 9999;
   animation: fade-out-flash 0.4s ease-in-out forwards;
