@@ -64,6 +64,7 @@ export function GameHost({
       Math.max(1, Math.min(2, 4096 / width, 4096 / height));
     let renderDensity = getRenderDensity(initialWidth, initialHeight);
     hostElement.dataset.renderDensity = renderDensity.toFixed(2);
+    let lastRect = hostElement.getBoundingClientRect();
 
     const unsubscribeReady = gameEvents.on<void>(
       GAME_EVENTS.SCENE_READY,
@@ -122,31 +123,57 @@ export function GameHost({
         powerPreference: "high-performance",
       },
     }) as Phaser.Types.Core.GameConfig);
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      const width = Math.max(1, Math.round(entry.contentRect.width));
-      const height = Math.max(1, Math.round(entry.contentRect.height));
+    const syncHostLayout = (): void => {
+      const rect = hostElement.getBoundingClientRect();
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
       renderDensity = getRenderDensity(width, height);
       hostElement.dataset.renderDensity = renderDensity.toFixed(2);
       const renderWidth = Math.max(1, Math.round(width * renderDensity));
       const renderHeight = Math.max(1, Math.round(height * renderDensity));
 
-      game.scale.resize(renderWidth, renderHeight);
+      if (
+        game.scale.width !== renderWidth ||
+        game.scale.height !== renderHeight
+      ) {
+        game.scale.resize(renderWidth, renderHeight);
+      }
       const canvas = game.canvas;
       if (canvas) {
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
       }
+      game.scale.refresh();
+      game.scale.updateBounds();
       hostElement.dataset.renderWidth = String(renderWidth);
       hostElement.dataset.renderHeight = String(renderHeight);
+      lastRect = rect;
+    };
+
+    syncHostLayout();
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncHostLayout();
     });
     resizeObserver.observe(hostElement);
 
+    let frameId = 0;
+    const watchBounds = (): void => {
+      const rect = hostElement.getBoundingClientRect();
+      if (
+        Math.round(rect.x) !== Math.round(lastRect.x) ||
+        Math.round(rect.y) !== Math.round(lastRect.y) ||
+        Math.round(rect.width) !== Math.round(lastRect.width) ||
+        Math.round(rect.height) !== Math.round(lastRect.height)
+      ) {
+        syncHostLayout();
+      }
+      frameId = window.requestAnimationFrame(watchBounds);
+    };
+    frameId = window.requestAnimationFrame(watchBounds);
+
     return () => {
+      window.cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
       unsubscribeReady();
       unsubscribeProgress();
