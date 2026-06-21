@@ -797,6 +797,9 @@ export class ArchitectureScene extends Phaser.Scene {
         !shiftConnect
       ) {
         this.playNodeSelection(nodeId);
+        gameEvents.emit(GAME_EVENTS.NODE_DETAILS_REQUEST, {
+          nodeId,
+        });
         this.statusText.setText(
           nodeId === "entry"
             ? "트래픽 입구는 고정 시설입니다"
@@ -997,9 +1000,10 @@ export class ArchitectureScene extends Phaser.Scene {
         pointer.worldX,
         pointer.worldY,
       );
+      const isSimpleClick = movementDistance < 15;
       const resolution = resolveNodeGesture({
         mode: gesture.mode,
-        dragged: gesture.dragged,
+        dragged: gesture.dragged || !isSimpleClick,
         movementDistance,
         source,
         target,

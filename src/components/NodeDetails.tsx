@@ -8,6 +8,7 @@ import {
   NODE_PORT_LIMITS,
 } from "../simulation/trafficSimulation";
 import { useGameStore } from "../store/gameStore";
+import { DeviceIcon } from "./DeviceIcon";
 
 interface NodeDetailsProps {
   nodeId: ArchitectureNodeId;
@@ -113,6 +114,20 @@ export function NodeDetails({
     return "#f6d477";
   };
 
+  const getAccentGradient = () => {
+    if (copy.color === "mint") return "linear-gradient(135deg, #4ad2b6, #189e90)";
+    if (copy.color === "purple") return "linear-gradient(135deg, #a78bfa, #6d28d9)";
+    if (copy.color === "blue") return "linear-gradient(135deg, #60a5fa, #1d4ed8)";
+    return "linear-gradient(135deg, #fbbf24, #b45309)";
+  };
+
+  const getAccentShadowColor = () => {
+    if (copy.color === "mint") return "rgba(24, 158, 144, 0.25)";
+    if (copy.color === "purple") return "rgba(109, 40, 217, 0.25)";
+    if (copy.color === "blue") return "rgba(29, 78, 216, 0.25)";
+    return "rgba(180, 83, 9, 0.25)";
+  };
+
   return (
     <div
       className="resource-overlay"
@@ -136,7 +151,7 @@ export function NodeDetails({
           display: "flex",
           flexDirection: "column",
           gap: "16px",
-          width: "420px",
+          width: "440px",
           maxWidth: "92vw",
           maxHeight: "85vh",
           overflowY: "auto",
@@ -150,14 +165,39 @@ export function NodeDetails({
           boxSizing: "border-box"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span className="node-details-kicker" style={{ fontSize: "11px", letterSpacing: "0.1em", color: "var(--ui-blue)", fontWeight: 800 }}>DEVICE INFO</span>
+        <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", position: "relative", borderBottom: "1px solid var(--ui-line)", paddingBottom: "16px" }}>
+          {/* 장비 컬러 글로우와 그라데이션이 적용된 대표 아이콘 */}
+          <div style={{
+            display: "grid",
+            width: "56px",
+            height: "56px",
+            placeItems: "center",
+            borderRadius: "14px",
+            background: getAccentGradient(),
+            boxShadow: `0 8px 20px ${getAccentShadowColor()}`,
+            color: "#fff",
+            flexShrink: 0
+          }}>
+            <div style={{ width: "32px", height: "32px", display: "grid", placeItems: "center" }}>
+              <DeviceIcon nodeId={nodeId} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, paddingRight: "32px" }}>
+            <span className="node-details-kicker" style={{ fontSize: "10px", letterSpacing: "0.1em", color: "var(--ui-blue)", fontWeight: 800 }}>DEVICE INFO</span>
+            <h2 style={{ fontSize: "20px", fontWeight: 800, margin: 0, color: "var(--ui-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{copy.name}</h2>
+            <p style={{ fontSize: "11px", color: "var(--ui-muted)", lineHeight: "1.45", margin: 0 }}>{copy.role}</p>
+          </div>
+
           <button
             type="button"
             className="node-details-close"
             onClick={onClose}
             aria-label="장비 상세정보 닫기"
             style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
               background: "var(--ui-bg)",
               border: "1px solid var(--ui-line)",
               borderRadius: "50%",
@@ -172,11 +212,6 @@ export function NodeDetails({
           >
             ×
           </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <h2 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>{copy.name}</h2>
-          <p style={{ fontSize: "12px", color: "var(--ui-muted)", lineHeight: "1.55", margin: 0 }}>{copy.role}</p>
         </div>
 
         {/* 실시간 큐 점유율 원형 차트 (Circular Progress Bar) */}
