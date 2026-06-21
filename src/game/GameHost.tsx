@@ -108,6 +108,7 @@ export function GameHost({
         autoCenter: Phaser.Scale.NO_CENTER,
         width: hostElement.clientWidth || 1200,
         height: hostElement.clientHeight || 720,
+        resolution: window.devicePixelRatio || 1,
       },
       render: {
         pixelArt: false,

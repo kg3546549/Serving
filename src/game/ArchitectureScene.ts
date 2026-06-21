@@ -1382,7 +1382,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(WIDTH / 2, HEIGHT / 2, `서비스 개시\n3`, {
         align: "center",
         color: "#6e6590",
-        fontFamily: "Trebuchet MS",
+        fontFamily: "Pretendard",
         fontSize: "52px",
         fontStyle: "bold",
         stroke: "#ffffff",
@@ -1538,7 +1538,7 @@ export class ArchitectureScene extends Phaser.Scene {
             : "GET",
         {
         color: `#${color.toString(16).padStart(6, "0")}`,
-        fontFamily: "Arial",
+        fontFamily: "Pretendard",
         fontSize: operation === "write" ? "8px" : "9px",
         fontStyle: "bold",
         },
@@ -1692,7 +1692,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const responseLabel = this.add
       .text(0, -23, "RESPONSE", {
         color: "#6d55aa",
-        fontFamily: "Arial",
+        fontFamily: "Pretendard",
         fontSize: "10px",
         fontStyle: "bold",
         backgroundColor: "#f3effc",
@@ -1721,7 +1721,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const feedback = this.add
       .text(exit.x, exit.y - 52, "200 OK", {
         color: "#32855c",
-        fontFamily: "Arial",
+        fontFamily: "Pretendard",
         fontSize: "16px",
         fontStyle: "bold",
         backgroundColor: "#e9f8ef",
@@ -1760,7 +1760,7 @@ export class ArchitectureScene extends Phaser.Scene {
       this.add
         .text(0, -24, reason, {
           color: "#c43f52",
-          fontFamily: "Arial",
+          fontFamily: "Pretendard",
           fontSize: reason.length > 4 ? "8px" : "12px",
           fontStyle: "bold",
           backgroundColor: "#fff4f5",
@@ -2179,7 +2179,7 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private playMoneyFlyEffect(x: number, y: number): void {
     const text = this.add.text(x, y - 20, "+1$", {
-      fontFamily: "Pretendard, Arial",
+      fontFamily: "Pretendard",
       fontSize: "18px",
       fontStyle: "bold",
       color: "#1da4a0",
