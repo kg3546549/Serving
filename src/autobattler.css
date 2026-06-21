@@ -103,7 +103,7 @@
 .infra-game .stage-chip::after {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 100%;
   width: 18px;
   height: 100%;
   background: inherit;

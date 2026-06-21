@@ -125,26 +125,15 @@ export function GameHost({
       const width = Math.max(1, Math.round(entry.contentRect.width));
       const height = Math.max(1, Math.round(entry.contentRect.height));
       
-      const dpr = window.devicePixelRatio || 1;
+      // Phaser의 scale manager 리사이즈 호출 (내부적으로 resolution 배율에 맞춰 canvas 버퍼 크기를 자동 설정함)
       game.scale.resize(width, height);
 
-      // 고DPI 모니터/Retina 디스플레이에서 Phaser WebGL의 드로잉 버퍼(물리 픽셀)를 강제 보정하여
-      // 흐릿하게 확대 렌더링되던 현상을 완전히 고해상도로 갱신합니다.
+      // 고DPI/Retina 화면에서 canvas의 style 크기를 CSS 픽셀 크기로 명시적으로 고정하여
+      // Phaser scale manager의 크기 제어 버그를 방지하고 선명한 해상도를 유지합니다.
       const canvas = game.canvas;
-      if (canvas && dpr > 1) {
-        const targetWidth = width * dpr;
-        const targetHeight = height * dpr;
-        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
-          canvas.style.width = `${width}px`;
-          canvas.style.height = `${height}px`;
-
-          if (game.renderer && game.renderer.type === Phaser.WEBGL) {
-            const renderer = game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-            renderer.resize(targetWidth, targetHeight);
-          }
-        }
+      if (canvas) {
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
       }
     });
     resizeObserver.observe(hostElement);
