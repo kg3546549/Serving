@@ -984,6 +984,114 @@ summary:focus-visible {
   gap: 13px;
 }
 
+.equipment-selected {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--menu-line);
+  border-radius: 15px;
+  background:
+    linear-gradient(100deg, color-mix(in oklab, var(--menu-blue) 8%, white), white);
+}
+
+.equipment-selected-icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--menu-blue), var(--menu-blue-strong));
+  color: white;
+}
+
+.equipment-selected.category-loadBalancer .equipment-selected-icon,
+.equipment-selected.category-security .equipment-selected-icon {
+  background: linear-gradient(145deg, var(--menu-purple), var(--menu-purple-strong));
+}
+
+.equipment-selected.category-database .equipment-selected-icon,
+.equipment-selected.category-cache .equipment-selected-icon {
+  background: linear-gradient(145deg, var(--menu-teal), oklch(0.58 0.13 196));
+}
+
+.equipment-selected.category-queue .equipment-selected-icon,
+.equipment-selected.category-storage .equipment-selected-icon,
+.equipment-selected.category-maintenance .equipment-selected-icon {
+  background: linear-gradient(145deg, var(--menu-gold), oklch(0.66 0.14 70));
+}
+
+.equipment-selected-icon svg {
+  width: 37px;
+  height: 37px;
+}
+
+.equipment-selected > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.equipment-selected > div small {
+  color: var(--menu-blue);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.equipment-selected > div strong {
+  font-size: 16px;
+}
+
+.equipment-selected > div p {
+  margin: 0;
+  color: var(--menu-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.equipment-selected > div > span {
+  color: var(--menu-teal);
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.equipment-selected dl {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 7px;
+  margin: 0;
+}
+
+.equipment-selected dl > div {
+  display: grid;
+  min-width: 68px;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--menu-blue) 5%, white);
+}
+
+.equipment-selected dt {
+  color: var(--menu-muted);
+  font-size: 7px;
+  font-weight: 850;
+}
+
+.equipment-selected dd {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.equipment-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .equipment-filters {
   display: flex;
   flex-wrap: wrap;
@@ -1007,6 +1115,44 @@ summary:focus-visible {
   color: white;
 }
 
+.equipment-search {
+  display: flex;
+  min-width: 240px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--menu-line);
+  border-radius: 10px;
+  background: white;
+}
+
+.equipment-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--menu-text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.equipment-search input::placeholder {
+  color: var(--menu-muted);
+}
+
+.equipment-search b {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--menu-blue) 10%, white);
+  color: var(--menu-blue);
+  font-size: 8px;
+}
+
 .equipment-catalog {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1015,6 +1161,7 @@ summary:focus-visible {
 
 .equipment-catalog-card {
   display: grid;
+  width: 100%;
   min-width: 0;
   grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
@@ -1023,6 +1170,22 @@ summary:focus-visible {
   border: 1px solid var(--menu-line);
   border-radius: 13px;
   background: white;
+  color: var(--menu-text);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.equipment-catalog-card:hover,
+.equipment-catalog-card.selected {
+  border-color: var(--menu-blue);
+  box-shadow: 0 8px 18px color-mix(in oklab, var(--menu-blue) 11%, transparent);
+  transform: translateY(-1px);
+}
+
+.equipment-catalog-card.selected {
+  background: color-mix(in oklab, var(--menu-blue) 4%, white);
 }
 
 .equipment-catalog-icon {
@@ -1046,7 +1209,8 @@ summary:focus-visible {
 }
 
 .equipment-catalog-card.category-queue .equipment-catalog-icon,
-.equipment-catalog-card.category-storage .equipment-catalog-icon {
+.equipment-catalog-card.category-storage .equipment-catalog-icon,
+.equipment-catalog-card.category-maintenance .equipment-catalog-icon {
   background: linear-gradient(145deg, var(--menu-gold), oklch(0.66 0.14 70));
 }
 
@@ -1107,6 +1271,186 @@ summary:focus-visible {
 .equipment-catalog-meta b {
   color: var(--menu-gold);
   font-size: 11px;
+}
+
+.equipment-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 36px;
+  border: 1px dashed var(--menu-line);
+  border-radius: 13px;
+  color: var(--menu-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.wave-guide {
+  display: grid;
+  gap: 13px;
+}
+
+.wave-guide-summary {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--menu-line);
+  border-radius: 16px;
+  background:
+    linear-gradient(100deg, color-mix(in oklab, var(--menu-purple) 7%, white), white);
+}
+
+.wave-guide-summary > div:first-child {
+  display: grid;
+  max-width: 700px;
+  gap: 4px;
+}
+
+.wave-guide-summary small {
+  color: var(--menu-purple);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.wave-guide-summary strong {
+  font-size: 17px;
+}
+
+.wave-guide-summary p {
+  margin: 0;
+  color: var(--menu-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.wave-guide-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+}
+
+.wave-guide-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--menu-muted);
+  font-size: 8px;
+  font-weight: 850;
+}
+
+.wave-guide-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--menu-blue);
+}
+
+.wave-guide-legend i.write {
+  background: var(--menu-gold);
+}
+
+.wave-guide-legend i.slow {
+  background: var(--menu-purple);
+}
+
+.wave-timeline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.wave-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--menu-line);
+  border-radius: 13px;
+  background: white;
+}
+
+.wave-card-number {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in oklab, var(--menu-blue) 11%, white);
+  color: var(--menu-blue-strong);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.wave-card.scale .wave-card-number {
+  background: color-mix(in oklab, var(--menu-teal) 12%, white);
+  color: oklch(0.52 0.13 196);
+}
+
+.wave-card.database .wave-card-number {
+  background: color-mix(in oklab, var(--menu-gold) 14%, white);
+  color: oklch(0.56 0.14 70);
+}
+
+.wave-card.boss {
+  border-color: color-mix(in oklab, var(--menu-purple) 35%, white);
+}
+
+.wave-card.boss .wave-card-number {
+  background: color-mix(in oklab, var(--menu-purple) 14%, white);
+  color: var(--menu-purple-strong);
+}
+
+.wave-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.wave-card-copy > small {
+  color: var(--menu-blue);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+}
+
+.wave-card-copy > strong {
+  font-size: 11px;
+}
+
+.wave-card-copy > p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--menu-muted);
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wave-card-copy > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.wave-card-copy > div span,
+.wave-card-copy > div b {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--menu-blue) 6%, white);
+  color: var(--menu-muted);
+  font-size: 7px;
+  font-weight: 850;
+}
+
+.wave-card-copy > div b {
+  background: color-mix(in oklab, var(--menu-gold) 12%, white);
+  color: oklch(0.55 0.13 70);
 }
 
 @keyframes menu-overlay-in {
@@ -1191,6 +1535,15 @@ summary:focus-visible {
 
   .equipment-catalog {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .equipment-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .equipment-search {
+    width: 100%;
   }
 }
 
@@ -1279,6 +1632,33 @@ summary:focus-visible {
   .equipment-catalog {
     grid-template-columns: 1fr;
   }
+
+  .equipment-selected {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .equipment-selected-icon {
+    width: 52px;
+    height: 52px;
+  }
+
+  .equipment-selected dl {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .wave-guide-summary {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .wave-guide-legend {
+    justify-content: start;
+  }
+
+  .wave-timeline {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 460px) {
@@ -1312,6 +1692,14 @@ summary:focus-visible {
 
   .menu-architecture-preview {
     grid-template-rows: 48px minmax(230px, 1fr) auto;
+  }
+
+  .menu-guide-tabs {
+    overflow-x: auto;
+  }
+
+  .menu-guide-tabs button {
+    flex: 0 0 auto;
   }
 }
 

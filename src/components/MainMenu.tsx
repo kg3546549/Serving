@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { STAGE_ONE_WAVES } from "../campaign/campaignData";
 import type {
   BuildSystemType,
+  MaintenanceItemType,
   NodeCategory,
 } from "../simulation/trafficSimulation";
-import { SYSTEM_CATALOG } from "../simulation/trafficSimulation";
+import {
+  MAINTENANCE_CATALOG,
+  SYSTEM_CATALOG,
+} from "../simulation/trafficSimulation";
 import { ResourceIcon } from "./DeviceIcon";
 
 interface MainMenuProps {
@@ -47,10 +52,12 @@ const equipment: Array<{
   },
 ];
 
-type GuideView = "game" | "equipment";
-type EquipmentFilter = "all" | NodeCategory;
+type GuideView = "game" | "waves" | "equipment";
+type CatalogType = BuildSystemType | MaintenanceItemType;
+type CatalogCategory = NodeCategory | "maintenance";
+type EquipmentFilter = "all" | CatalogCategory;
 
-const categoryLabels: Record<NodeCategory, string> = {
+const categoryLabels: Record<CatalogCategory, string> = {
   server: "컴퓨트",
   database: "데이터베이스",
   loadBalancer: "라우팅",
@@ -58,6 +65,7 @@ const categoryLabels: Record<NodeCategory, string> = {
   security: "보안",
   cache: "캐시",
   storage: "스토리지",
+  maintenance: "점검 도구",
 };
 
 const categoryFilters: EquipmentFilter[] = [
@@ -69,9 +77,19 @@ const categoryFilters: EquipmentFilter[] = [
   "cache",
   "security",
   "storage",
+  "maintenance",
 ];
 
-function getPlacementLabel(type: BuildSystemType): string {
+function isMaintenanceType(
+  type: CatalogType,
+): type is MaintenanceItemType {
+  return Object.prototype.hasOwnProperty.call(MAINTENANCE_CATALOG, type);
+}
+
+function getPlacementLabel(type: CatalogType): string {
+  if (isMaintenanceType(type)) {
+    return "구매 즉시 운영 효과";
+  }
   const spec = SYSTEM_CATALOG[type];
   if (spec.nodeId) {
     return "보드에 직접 배치";
@@ -85,6 +103,30 @@ function getPlacementLabel(type: BuildSystemType): string {
     return "보유 시 패시브 적용";
   }
   return "패시브 효과";
+}
+
+function getCatalogCategory(type: CatalogType): CatalogCategory {
+  return isMaintenanceType(type)
+    ? "maintenance"
+    : SYSTEM_CATALOG[type].category;
+}
+
+function getCatalogName(type: CatalogType): string {
+  return isMaintenanceType(type)
+    ? MAINTENANCE_CATALOG[type].name
+    : SYSTEM_CATALOG[type].name;
+}
+
+function getCatalogDescription(type: CatalogType): string {
+  return isMaintenanceType(type)
+    ? MAINTENANCE_CATALOG[type].description
+    : SYSTEM_CATALOG[type].description;
+}
+
+function getCatalogCost(type: CatalogType): number {
+  return isMaintenanceType(type)
+    ? MAINTENANCE_CATALOG[type].cost
+    : SYSTEM_CATALOG[type].cost;
 }
 
 function FlowNode({
@@ -169,6 +211,51 @@ function GameGuide(): React.JSX.Element {
   );
 }
 
+function WaveGuide(): React.JSX.Element {
+  return (
+    <div className="wave-guide">
+      <section className="wave-guide-summary">
+        <div>
+          <small>STAGE 01</small>
+          <strong>기본 HTTPS API · 10 WAVES</strong>
+          <p>
+            읽기 요청에서 시작해 쓰기, Burst, 느린 조회가 차례로 추가됩니다.
+            성공률 목표를 만족하면서 Service HP를 지키면 스테이지를 완료합니다.
+          </p>
+        </div>
+        <div className="wave-guide-legend">
+          <span><i className="read" /> GET / READ</span>
+          <span><i className="write" /> POST / WRITE</span>
+          <span><i className="slow" /> SLOW QUERY</span>
+        </div>
+      </section>
+      <div className="wave-timeline">
+        {STAGE_ONE_WAVES.map((wave) => (
+          <article
+            className={`wave-card ${
+              wave.id >= 9 ? "boss" : wave.id >= 7 ? "database" : wave.id >= 4 ? "scale" : ""
+            }`}
+            key={wave.id}
+          >
+            <span className="wave-card-number">{String(wave.id).padStart(2, "0")}</span>
+            <div className="wave-card-copy">
+              <small>{wave.protocol} · {wave.requestCount} REQUESTS</small>
+              <strong>{wave.name}</strong>
+              <p>{wave.description}</p>
+              <div>
+                <span>성공률 {Math.round(wave.targetSuccessRate * 100)}%</span>
+                <span>제한 {(wave.deadlineMs / 1000).toFixed(1)}초</span>
+                {wave.writeEvery && <b>WRITE</b>}
+                {wave.slowQueryEvery && <b>SLOW</b>}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EquipmentGuide({
   filter,
   onFilterChange,
@@ -176,57 +263,140 @@ function EquipmentGuide({
   filter: EquipmentFilter;
   onFilterChange: (filter: EquipmentFilter) => void;
 }): React.JSX.Element {
+  const [query, setQuery] = useState("");
+  const [selectedType, setSelectedType] = useState<CatalogType>("ec2");
   const items = useMemo(
-    () =>
-      (Object.keys(SYSTEM_CATALOG) as BuildSystemType[])
-        .filter(
-          (type) =>
-            filter === "all" || SYSTEM_CATALOG[type].category === filter,
-        )
+    () => {
+      const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
+      return [
+        ...(Object.keys(SYSTEM_CATALOG) as BuildSystemType[]),
+        ...(Object.keys(MAINTENANCE_CATALOG) as MaintenanceItemType[]),
+      ]
+        .filter((type) => {
+          const category = getCatalogCategory(type);
+          const matchesFilter = filter === "all" || category === filter;
+          const matchesQuery =
+            normalizedQuery.length === 0 ||
+            `${getCatalogName(type)} ${getCatalogDescription(type)} ${category}`
+              .toLocaleLowerCase("ko-KR")
+              .includes(normalizedQuery);
+          return matchesFilter && matchesQuery;
+        })
         .sort((left, right) => {
-          const tierDifference =
-            SYSTEM_CATALOG[left].tier - SYSTEM_CATALOG[right].tier;
-          return tierDifference || SYSTEM_CATALOG[left].cost - SYSTEM_CATALOG[right].cost;
-        }),
-    [filter],
+          const leftTier =
+            isMaintenanceType(left) ? 6 : SYSTEM_CATALOG[left].tier;
+          const rightTier =
+            isMaintenanceType(right) ? 6 : SYSTEM_CATALOG[right].tier;
+          return leftTier - rightTier || getCatalogCost(left) - getCatalogCost(right);
+        });
+    },
+    [filter, query],
   );
+  const selectedCategory = getCatalogCategory(selectedType);
+  const selectedSystem =
+    isMaintenanceType(selectedType) ? null : SYSTEM_CATALOG[selectedType];
+
+  useEffect(() => {
+    if (items.length > 0 && !items.includes(selectedType)) {
+      setSelectedType(items[0]);
+    }
+  }, [items, selectedType]);
 
   return (
     <div className="equipment-guide">
-      <div className="equipment-filters" aria-label="장비 카테고리">
-        {categoryFilters.map((category) => (
-          <button
-            type="button"
-            className={filter === category ? "active" : ""}
-            aria-pressed={filter === category}
-            onClick={() => onFilterChange(category)}
-            key={category}
-          >
-            {category === "all" ? "전체 20" : categoryLabels[category]}
-          </button>
-        ))}
+      <section className={`equipment-selected category-${selectedCategory}`}>
+        <span className="equipment-selected-icon">
+          <ResourceIcon type={selectedType} />
+        </span>
+        <div>
+          <small>
+            {categoryLabels[selectedCategory]}
+          </small>
+          <strong>{getCatalogName(selectedType)}</strong>
+          <p>{getCatalogDescription(selectedType)}</p>
+          <span>{getPlacementLabel(selectedType)}</span>
+        </div>
+        <dl>
+          <div><dt>가격</dt><dd>● {getCatalogCost(selectedType)}</dd></div>
+          <div>
+            <dt>등급</dt>
+            <dd>{selectedSystem ? `TIER ${selectedSystem.tier}` : "UTILITY"}</dd>
+          </div>
+          <div>
+            <dt>운용</dt>
+            <dd>
+              {selectedSystem
+                ? selectedSystem.nodeId
+                  ? "BOARD"
+                  : "PASSIVE"
+                : "INSTANT"}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <div className="equipment-toolbar">
+        <div className="equipment-filters" aria-label="장비 카테고리">
+          {categoryFilters.map((category) => (
+            <button
+              type="button"
+              className={filter === category ? "active" : ""}
+              aria-pressed={filter === category}
+              onClick={() => onFilterChange(category)}
+              key={category}
+            >
+              {category === "all"
+                ? "전체 23"
+                : categoryLabels[category]}
+            </button>
+          ))}
+        </div>
+        <label className="equipment-search">
+          <span className="visually-hidden">장비 검색</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="장비 이름 또는 기능 검색"
+          />
+          <b>{items.length}</b>
+        </label>
       </div>
       <div className="equipment-catalog">
         {items.map((type) => {
-          const spec = SYSTEM_CATALOG[type];
+          const category = getCatalogCategory(type);
+          const spec = isMaintenanceType(type) ? null : SYSTEM_CATALOG[type];
           return (
-            <article className={`equipment-catalog-card category-${spec.category}`} key={type}>
+            <button
+              type="button"
+              className={`equipment-catalog-card category-${category} ${
+                selectedType === type ? "selected" : ""
+              }`}
+              aria-pressed={selectedType === type}
+              onClick={() => setSelectedType(type)}
+              key={type}
+            >
               <span className="equipment-catalog-icon">
                 <ResourceIcon type={type} />
               </span>
               <div className="equipment-catalog-copy">
-                <small>{categoryLabels[spec.category]}</small>
-                <strong>{spec.name}</strong>
-                <p>{spec.description}</p>
+                <small>
+                  {categoryLabels[category]}
+                </small>
+                <strong>{getCatalogName(type)}</strong>
+                <p>{getCatalogDescription(type)}</p>
                 <span>{getPlacementLabel(type)}</span>
               </div>
               <div className="equipment-catalog-meta">
-                <span>TIER {spec.tier}</span>
-                <b>● {spec.cost}</b>
+                <span>{spec ? `TIER ${spec.tier}` : "UTILITY"}</span>
+                <b>● {getCatalogCost(type)}</b>
               </div>
-            </article>
+            </button>
           );
         })}
+        {items.length === 0 && (
+          <p className="equipment-empty">검색 조건에 맞는 장비가 없습니다.</p>
+        )}
       </div>
     </div>
   );
@@ -243,20 +413,60 @@ function GuideDialog({
 }): React.JSX.Element {
   const [equipmentFilter, setEquipmentFilter] =
     useState<EquipmentFilter>("all");
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent): void => {
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
+
+    const handleDialogKey = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", handleDialogKey);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleDialogKey);
+      document.body.style.overflow = originalOverflow;
+      previousFocusRef.current?.focus();
+    };
   }, [onClose]);
 
   return (
     <div className="menu-guide-overlay" role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className="menu-guide-dialog"
         role="dialog"
         aria-modal="true"
@@ -269,10 +479,10 @@ function GuideDialog({
             <h2 id="menu-guide-title">서비스 운영 가이드</h2>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             aria-label="가이드 닫기"
-            autoFocus
           >
             ×
           </button>
@@ -288,17 +498,25 @@ function GuideDialog({
           </button>
           <button
             type="button"
+            className={view === "waves" ? "active" : ""}
+            aria-pressed={view === "waves"}
+            onClick={() => onViewChange("waves")}
+          >
+            웨이브 브리핑 <span>10</span>
+          </button>
+          <button
+            type="button"
             className={view === "equipment" ? "active" : ""}
             aria-pressed={view === "equipment"}
             onClick={() => onViewChange("equipment")}
           >
-            장비 도감 <span>20</span>
+            장비 도감 <span>23</span>
           </button>
         </nav>
         <div className="menu-guide-dialog-body">
-          {view === "game" ? (
-            <GameGuide />
-          ) : (
+          {view === "game" && <GameGuide />}
+          {view === "waves" && <WaveGuide />}
+          {view === "equipment" && (
             <EquipmentGuide
               filter={equipmentFilter}
               onFilterChange={setEquipmentFilter}
@@ -334,6 +552,9 @@ export function MainMenu({ onStart }: MainMenuProps): React.JSX.Element {
             <nav className="menu-quick-nav" aria-label="시작 화면 도움말">
               <button type="button" onClick={() => setGuideView("game")}>
                 게임 설명
+              </button>
+              <button type="button" onClick={() => setGuideView("waves")}>
+                웨이브
               </button>
               <button type="button" onClick={() => setGuideView("equipment")}>
                 장비 도감
@@ -452,7 +673,7 @@ export function MainMenu({ onStart }: MainMenuProps): React.JSX.Element {
                 <strong>핵심 장비 역할</strong>
               </div>
               <button type="button" onClick={() => setGuideView("equipment")}>
-                전체 장비 20종
+                전체 장비 23종
               </button>
             </header>
             <div className="menu-equipment-grid">
