@@ -568,8 +568,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
     const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
     halo.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, 0, 58, 58, 0x1b79df, 1);
-    tile.setStrokeStyle(2, 0xffffff, 0.95);
+    const tile = this.add.circle(0, 0, 29, 0x1b79df, 1);
+    tile.setStrokeStyle(2.5, 0xffffff, 0.95);
     const icon = this.add.graphics();
     DEVICE_ICON_META.entry.drawPhaser(icon);
     const label = this.createNodeLabel("Traffic Ingress", 0, 54);
@@ -585,8 +585,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
     const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
     halo.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, 0, 58, 58, COLORS.purpleDark, 1);
-    tile.setStrokeStyle(2, 0xffffff, 0.95);
+    const tile = this.add.circle(0, 0, 29, COLORS.purpleDark, 1);
+    tile.setStrokeStyle(2.5, 0xffffff, 0.95);
     const icon = this.add.graphics();
     DEVICE_ICON_META.exit.drawPhaser(icon);
     const label = this.createNodeLabel("Response Egress", 0, 54);
@@ -609,9 +609,9 @@ export class ArchitectureScene extends Phaser.Scene {
     halo.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x1b79df, 1);
-    body.fillRoundedRect(-29, -29, 58, 58, 14);
+    body.fillCircle(0, 0, 29);
     body.lineStyle(3, 0xffffff, 1);
-    body.strokeRoundedRect(-29, -29, 58, 58, 14);
+    body.strokeCircle(0, 0, 29);
     DEVICE_ICON_META[id].drawPhaser(body);
     const stateText = this.add
       .text(0, 54, "APP", {
@@ -645,9 +645,9 @@ export class ArchitectureScene extends Phaser.Scene {
     halo.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x7258cb, 1);
-    body.fillRoundedRect(-29, -29, 58, 58, 14);
+    body.fillCircle(0, 0, 29);
     body.lineStyle(3, 0xffffff, 0.95);
-    body.strokeRoundedRect(-29, -29, 58, 58, 14);
+    body.strokeCircle(0, 0, 29);
     DEVICE_ICON_META.loadBalancer.drawPhaser(body);
     const label = this.createNodeLabel("Load Balancer", 0, 54);
     const sub = this.createNodeSubLabel("RR", 0, 74);
@@ -663,8 +663,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
     const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
     halo.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, 0, 58, 58, 0x1da4a0);
-    tile.setStrokeStyle(2, 0xffffff, 0.95);
+    const tile = this.add.circle(0, 0, 29, 0x1da4a0, 1);
+    tile.setStrokeStyle(2.5, 0xffffff, 0.95);
     const database = this.add.graphics();
     DEVICE_ICON_META.database.drawPhaser(database);
     const label = this.createNodeLabel("Primary DB", 0, 72);
