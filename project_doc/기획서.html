@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=1280">
+  <title>STACK//BREACH 기획서</title><link rel="stylesheet" href="./slide-theme.css">
+</head>
+<body>
+<script>
+window.DECK = { label: "기획서", slides: [
+  { type:"cover", section:"GAME DESIGN DOCUMENT · 2026", kicker:"Infrastructure Architecture Defense", title:"서버를 연결하고<br>트래픽을 방어하라", copy:"클라우드 인프라를 직접 설계하고 병목을 해결하는<br>웹 기반 아키텍처 디펜스 · 퍼즐 시뮬레이터", chips:["Web / PC","Phaser 3","React 19","10 Waves"], visual:true },
+  { type:"cards", section:"게임 소개", title:"시스템 설계를 플레이하는 디펜스 게임", subtitle:"제한된 예산과 공간 안에서 서버·데이터베이스·로드밸런서를 배치하고 실제 인프라 병목 패턴을 해결한다.", columns:2, items:[
+    {title:"게임 기본 정보", html:"<ul><li><b>장르</b> 서버 인프라 아키텍처 디펜스 / 퍼즐</li><li><b>플랫폼</b> PC 웹 브라우저</li><li><b>타깃</b> 소프트웨어·네트워크 학습자, 백엔드 지망자</li><li><b>레퍼런스</b> Turing Complete, Silicon Zeroes, 오토배틀러</li></ul>"},
+    {title:"핵심 재미", html:"<ul><li>큐 폭발과 Timeout을 해결하는 엔지니어링의 쾌감</li><li>Manhattan Distance 기반 경로 최적화</li><li>동일 장비 3개 합성과 증강 조합</li><li>웨이브별 병목 패턴에 맞춘 실시간 리팩터링</li></ul>", color:"purple"}
+  ]},
+  { type:"loop", section:"코어 루프", title:"설계 → 운영 → 보상 → 성장", subtitle:"매 웨이브의 결과가 다음 아키텍처 설계에 직접 반영되는 짧고 명확한 성장 루프다.", items:[
+    {title:"구매 · 배치", text:"장비를 구매하고 격자 보드에 배치한다."},{title:"연결 · 운영", text:"트래픽·데이터 링크를 구성하고 서비스를 개시한다."},
+    {title:"보상 획득", text:"성공 요청만큼 Credits와 XP를 확보한다."},{title:"성장 · 대응", text:"합성·증강·확장으로 다음 병목에 대비한다."}
+  ], notes:[
+    {title:"ACTION", text:"Architecture Build"},{title:"REWARD", text:"Credits + XP", color:"yellow"},{title:"RETENTION", text:"Continuous Refactoring", color:"mint"}
+  ]},
+  { type:"cards", section:"세계관 소개", title:"서비스 런칭 직후, 예측을 넘어선 트래픽이 몰려온다", subtitle:"플레이어는 신규 서비스의 인프라 아키텍트가 되어 10개 웨이브 동안 Service HP를 지켜야 한다.", columns:3, items:[
+    {title:"가상현실 대시보드", text:"서버와 네트워크가 격자 위에 실체화된다. 패킷 이동과 Queue, 부하 경고를 실시간으로 관찰한다."},
+    {title:"상황과 위협", text:"마케팅 성공으로 요청이 폭증한다. Timeout, Queue Full, Slow Query가 서비스 안정성을 위협한다.", color:"pink"},
+    {title:"승리 조건", text:"실패율을 억제하고 Service HP를 유지해 Wave 10 최종 부하 테스트를 통과한다.", color:"mint"},
+    {title:"보드 성장", text:"레벨에 따라 7×4에서 최대 13×6까지 물리적 인프라 영역이 확장된다.", color:"yellow"},
+    {title:"Tone & Mood", text:"밝은 정보 HUD와 다크 네이비 보드, 패킷 광점과 붉은 부하 경고가 대비된다.", color:"purple"},
+    {title:"플레이어 역할", text:"관찰하고 설계하고 리팩터링하는 클라우드 인프라 아키텍트.", color:"blue"}
+  ]},
+  { type:"table", section:"캐릭터 소개", title:"캐릭터는 역할과 부하 패턴으로 구분된다", subtitle:"각 요청 유형은 서로 다른 병목을 만들며 플레이어의 설계 선택을 시험한다.", headers:["구분","대상","게임 내 역할","주요 대응"], rows:[
+    ["주인공","<b>인프라 아키텍트</b>","재화 분배, 장비 배치, 네트워크 구성","관찰 · 설계 · 리팩터링"],
+    ["트래픽","<b>GET</b>","DB 읽기 부하 집중","읽기 처리량과 경로 개선"],
+    ["트래픽","<b>POST</b>","Primary DB 쓰기 병목","쓰기 성능과 큐 관리"],
+    ["트래픽","<b>SLOW</b>","장시간 쿼리로 Queue 점유","처리 속도 증강"],
+    ["트래픽","<b>BURST</b>","순간 대량 요청으로 큐 폭발","로드밸런싱과 용량 확보"],
+    ["보스","<b>부하 테스트</b>","모든 요청이 복합적으로 등장","전체 아키텍처 검증"]
+  ]},
+  { type:"concept", section:"컨셉 아트", title:"밝은 카드 HUD와 다크 네이비 월드의 대비", subtitle:"교육용 대시보드의 명료함과 게임 보드의 기술적 긴장감을 한 화면에 결합한다.", html:"<ul><li>크림·페이퍼 기반의 부드러운 정보 패널</li><li>파스텔 컬러로 링크와 상태를 즉시 구분</li><li>격자·글로우·패킷 광점으로 실시간 시스템 표현</li><li>단순한 SVG 장비 아이콘과 굵은 상태 수치</li></ul>", swatches:["#142238","#88b8ef","#b4a1e5","#f6d477","#79cf94","#e86d7e"] },
+  { type:"cover", section:"DESIGN SUMMARY", kicker:"Final Statement", title:"보이지 않던 서버 구조를<br>직접 만지고 이해하는 게임", copy:"인프라 설계 지식을 장비 배치, 링크 연결, 병목 대응이라는<br>명확한 플레이 행동으로 변환한다.", chips:["BUILD","OBSERVE","OPTIMIZE","SURVIVE"], visual:false }
+]};
+</script>
+<script src="./deck-runtime.js"></script>
+</body></html>

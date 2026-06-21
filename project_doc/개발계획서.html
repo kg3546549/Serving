@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=1280">
+  <title>STACK//BREACH 개발 계획서</title><link rel="stylesheet" href="./slide-theme.css">
+</head>
+<body>
+<script>
+const stage = (number, section, title, stageTitle, summary, color, badge, checks) => ({type:"stage",number,section,title,stageTitle,summary,color,badge,checks});
+window.DECK = { label:"개발 계획서", slides:[
+  {type:"cover",section:"DEVELOPMENT PLAN · 2026",kicker:"Web Game Production Roadmap",title:"개발 계획서",copy:"화면 구성부터 핵심 시뮬레이션, 성장 시스템과 폴리싱까지<br>완료 기준과 검증 방법을 포함한 단계별 구현 계획",chips:["React 19","Phaser 3","Zustand","Vitest"],visual:false},
+  {type:"timeline",section:"화면별 개발 순서",title:"플레이 진입부터 결과 확인까지 화면 흐름으로 구현한다",subtitle:"각 화면을 독립적으로 완성한 뒤 상태 공유와 전환 흐름을 연결한다.",items:[
+    {title:"1. 메인 메뉴",text:"소개 · 시작 · 조작 안내"},{title:"2. 게임 보드",text:"격자 · 카메라 · 장비 노드"},
+    {title:"3. 상점·인벤토리",text:"구매 · 리롤 · 드래그"},{title:"4. 링크 편집",text:"포트 · 거리 · 예산"},
+    {title:"5. 웨이브 HUD",text:"HP · Queue · 패킷"},{title:"6. 결과·증강",text:"보상 · 합성 · 재도전"}
+  ],notes:[
+    {title:"화면 단위 기준",text:"레이아웃 → 입력 → 상태 반영 → 전환"},
+    {title:"통합 기준",text:"React와 Phaser가 동일 Zustand 상태를 사용",color:"purple"},
+    {title:"검증 기준",text:"전체 플레이 흐름을 브라우저에서 연속 재현",color:"mint"}
+  ]},
+  {type:"cards",section:"기능별 개발 순서 · 우선순위",title:"핵심 플레이가 먼저, 성장과 연출은 그다음",subtitle:"실행 가능한 최소 게임 루프를 먼저 만들고 규칙, 성장, 폴리싱을 순차적으로 더한다.",columns:3,items:[
+    {badge:"PRIORITY 1",title:"핵심 조작",html:"<ul><li>격자·카메라</li><li>HUD·장비 배치</li><li>링크 연결·검증</li></ul>"},
+    {badge:"PRIORITY 2",title:"게임 규칙",html:"<ul><li>Tick 시뮬레이션</li><li>패킷 이동·Queue</li><li>상점·합성·증강</li></ul>",color:"purple"},
+    {badge:"PRIORITY 3",title:"연출·완성도",html:"<ul><li>Glow·Particle</li><li>상태별 사운드</li><li>밸런싱·최종 QA</li></ul>",color:"mint"}
+  ]},
+  stage("01","격자 및 카메라","Phaser 보드의 좌표계와 탐색 조작을 먼저 고정한다","Grid & Camera","1200×720 Scene, 7×4 → 13×6 가변 격자, 휠 줌, 드래그 이동, R 키 리셋을 구현한다.","blue","핵심 기반 기능",[
+    ["개발 순서","Scene 초기화 → 타일 렌더러 → 카메라 입력 → 리셋"],["구현할 기능","가변 격자, 줌, 맵 스크롤, 중앙 복귀"],
+    ["필요한 이미지","그리드 패턴 이미지"],["필요한 사운드","없음"],
+    ["완성 기준","격자가 정렬되고 모든 카메라 조작이 부드럽게 동작"],["확인 방법","브라우저에서 휠·드래그·R 키 반복 점검"]
+  ]),
+  stage("02","HUD 및 장비 배치","React HUD와 Phaser 보드를 하나의 상태로 연결한다","HUD & Placement","상단 HUD, 우측 상점, 하단 인벤토리와 장비 드래그앤드롭·재배치를 구현한다.","purple","상호작용 핵심",[
+    ["개발 순서","HUD → 상점·인벤토리 → 드래그 프리뷰 → 격자 스냅"],["구현할 기능","재화·HP 표시, 구매, 배치, 장비 이동"],
+    ["필요한 이미지","서버·ALB·DB SVG 아이콘"],["필요한 사운드","Click, Place 효과음"],
+    ["완성 기준","카드가 포인터를 따라가며 빈 셀 중앙에 정확히 배치"],["확인 방법","EC2·RDS 구매, 배치, 재이동 후 좌표 검사"]
+  ]),
+  stage("03","링크 연결 시스템","연결 가능 여부를 거리·포트·예산으로 판정한다","Link Validation","드래그 연결, Manhattan Distance, 포트 방향 제약과 링크 예산 초과 차단을 구현한다.","yellow","전략 규칙",[
+    ["개발 순서","입력 핸들러 → 거리 계산 → 포트 규칙 → 예산 검증"],["구현할 기능","Shift/우클릭 드래그, 방향선, 생성·취소"],
+    ["필요한 이미지","단색·점선 링크, 방향 화살표"],["필요한 사운드","연결 성공음, 조건 위반 경고음"],
+    ["완성 기준","유효 링크만 색상별 고정, 잘못된 경로는 즉시 차단"],["확인 방법","Ingress→EC2 성공, DB→Ingress 실패, 예산 초과 검사"]
+  ]),
+  stage("04","시뮬레이션 및 패킷","패킷의 생성부터 성공·실패까지 실시간으로 시각화한다","Simulation Tick","서비스 개시 후 요청을 생성하고 링크를 따라 이동시켜 보상 또는 HP 감소를 적용한다.","pink","게임 진행 규칙",[
+    ["개발 순서","Tick → 생성 → 이동 → Queue 처리 → 결과 반영"],["구현할 기능","Tween 이동, Queue 게이지, Timeout, Credits·HP"],
+    ["필요한 이미지","패킷용 원형 빛 리소스"],["필요한 사운드","운영 BGM, 성공음, 실패 경보음"],
+    ["완성 기준","Ingress→Server→DB→Egress 흐름과 결과가 일치"],["확인 방법","웨이브 실행 후 이동, 큐 경고, 보상·HP 관찰"]
+  ]),
+  stage("05","상점·합성·증강","반복 플레이를 만드는 성장 시스템을 완성한다","Growth System","Credits 리롤, 동일 장비 3개 자동 합성, 세 가지 증강 선택과 능력치 누적을 구현한다.","mint","성장·리텐션",[
+    ["개발 순서","재화·확률 → 리롤 → 합성 감시 → 증강 → 능력치"],["구현할 기능","2 Credits 리롤, 1·2·3성 병합, 랜덤 증강"],
+    ["필요한 이미지","성급 표시, 증강 카드 일러스트"],["필요한 사운드","합성 팡파르, 카드 선택음"],
+    ["완성 기준","3개 감지 즉시 병합, 선택 효과가 처리량에 반영"],["확인 방법","동일 장비 3개 구매 후 합성·툴팁·성능 검사"]
+  ]),
+  {type:"cards",section:"개발 진행 기준",title:"완료는 구현이 아니라 재현 가능한 검증 상태다",subtitle:"각 단계는 브라우저 동작, 자동 테스트, 플레이 흐름 세 기준을 모두 충족해야 종료한다.",columns:3,items:[
+    {title:"01 · 기능 검증",text:"localhost:5173에서 목표 기능이 깨짐 없이 동작하고 완료 기준을 재현한다."},
+    {title:"02 · 자동 테스트",text:"거리, 포트, 확률, 합성 판정 등 핵심 Vitest가 모두 GREEN이어야 한다.",color:"purple"},
+    {title:"03 · 통합 플레이",text:"구매 → 배치 → 연결 → 웨이브 → 보상 → 성장의 전체 루프를 연속 수행한다.",color:"mint"}
+  ]}
+]};
+</script>
+<script src="./deck-runtime.js"></script>
+</body></html>
