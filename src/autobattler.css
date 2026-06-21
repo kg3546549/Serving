@@ -1297,12 +1297,51 @@
   font-size: 24px;
 }
 
+.result-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px auto 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ui-blue) 10%, white 90%);
+  color: var(--ui-blue-strong);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .choice-modal > p,
 .help-lead,
 .result-caption,
 .learn-more p,
 .reaction-guide p {
   color: var(--ui-muted);
+}
+
+.result-diagnosis {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f7fbff, #eef5ff);
+  text-align: left;
+}
+
+.result-diagnosis small {
+  color: var(--ui-blue-strong);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.result-diagnosis strong {
+  color: var(--ui-text);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .choice-options {

@@ -25,6 +25,39 @@ export function ResultModal({
     : finalClear
       ? "운영 일정 완료"
       : "서비스 점검시간";
+  const summaryLabel = defeated
+    ? "치명적 장애"
+    : result.metrics.passed
+      ? "안정적 마감"
+      : "병목 발생";
+  const metricCards = [
+    { label: "성공률", value: `${successPercent}%`, tone: "blue" },
+    {
+      label: "평균 지연",
+      value: `${result.metrics.averageLatencyMs}ms`,
+      tone: "purple",
+    },
+    {
+      label: "성공 코인",
+      value: `+${result.metrics.earnedCoins}`,
+      tone: "gold",
+    },
+    {
+      label: "서버 대기",
+      value: `${result.metrics.peakServerQueue}`,
+      tone: "slate",
+    },
+    {
+      label: "DB 대기",
+      value: `${result.metrics.peakDatabaseQueue}`,
+      tone: "slate",
+    },
+    {
+      label: "저장 완료",
+      value: `${result.metrics.writeCompleted}`,
+      tone: "mint",
+    },
+  ] as const;
 
   return (
     <div className="soft-overlay">
@@ -37,42 +70,33 @@ export function ResultModal({
         <div className={`result-status-icon ${result.metrics.passed ? "success" : "failure"}`} aria-hidden="true">
           {result.metrics.passed ? "✓" : "!"}
         </div>
+        <span className="result-kicker">{summaryLabel}</span>
         <h2 id="result-title">{title}</h2>
-        <p className="result-caption">{result.bottleneck}</p>
+        <p className="result-caption">이번 운영을 마감했습니다. 아래 진단을 보고 다음 구성을 정리하세요.</p>
+
+        <section className="result-diagnosis">
+          <small>점검 메모</small>
+          <strong>{result.bottleneck}</strong>
+        </section>
 
         <div className="result-metrics">
-          <div>
-            <strong>{successPercent}%</strong>
-            <span>성공률</span>
-          </div>
-          <div>
-            <strong>{result.metrics.averageLatencyMs}ms</strong>
-            <span>평균 지연</span>
-          </div>
-          <div>
-            <strong>{result.metrics.peakServerQueue}</strong>
-            <span>Server Queue</span>
-          </div>
-          <div>
-            <strong>+{result.metrics.earnedCoins}</strong>
-            <span>성공 코인</span>
-          </div>
-          <div>
-            <strong>{result.metrics.peakDatabaseQueue}</strong>
-            <span>DB Queue</span>
-          </div>
-          <div>
-            <strong>{result.metrics.writeCompleted}</strong>
-            <span>저장 완료</span>
-          </div>
+          {metricCards.map((card) => (
+            <div key={card.label} className={`result-metric-card tone-${card.tone}`}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+            </div>
+          ))}
         </div>
 
-        <div className="hp-damage-report">
-          <span>서비스 HP</span>
+        <section className="hp-damage-report">
+          <div>
+            <span>서비스 HP</span>
+            <small>이번 운영에서 누적된 손상</small>
+          </div>
           <strong>
             {serviceHp} <small>(-{hpDamage})</small>
           </strong>
-        </div>
+        </section>
 
         {result.wave.id === 4 && (
           <div className="unlock-callout">

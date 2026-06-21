@@ -2777,7 +2777,7 @@ summary:focus-visible {
 }
 
 .result-card {
-  width: min(420px, 90vw);
+  width: min(520px, 92vw);
 }
 
 .result-face.success {
@@ -2800,29 +2800,92 @@ summary:focus-visible {
   font-family: Arial, sans-serif;
 }
 
+.result-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px auto 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #2465b5;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.result-diagnosis {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: #eef5ff;
+  text-align: left;
+}
+
+.result-diagnosis small {
+  color: #3270bc;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+}
+
+.result-diagnosis strong {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 .result-metrics {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 20px 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
 }
 
-.result-metrics > div {
+.result-metric-card {
   display: grid;
-  gap: 2px;
-  padding: 12px;
+  gap: 6px;
+  min-height: 96px;
+  align-content: space-between;
+  padding: 14px;
   border-radius: 18px;
   background: #f2eee5;
+  text-align: left;
 }
 
-.result-metrics strong {
+.result-metric-card strong {
   color: var(--ink);
-  font-size: 18px;
+  font-size: 24px;
+  line-height: 1;
 }
 
-.result-metrics span {
+.result-metric-card span {
   color: #777681;
   font-size: 11px;
+  font-weight: 800;
+}
+
+.result-metric-card.tone-blue {
+  background: #edf4ff;
+}
+
+.result-metric-card.tone-purple {
+  background: #f3efff;
+}
+
+.result-metric-card.tone-gold {
+  background: #fff7e7;
+}
+
+.result-metric-card.tone-slate {
+  background: #f3f6fa;
+}
+
+.result-metric-card.tone-mint {
+  background: #eaf9f2;
 }
 
 .unlock-callout {
@@ -2845,15 +2908,26 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   margin: 0 0 18px;
-  padding: 13px 16px;
+  padding: 15px 18px;
   border-radius: 17px;
   background: #fff0f2;
   color: #a93f52;
+  text-align: left;
+}
+
+.hp-damage-report div {
+  display: grid;
+  gap: 4px;
 }
 
 .hp-damage-report span {
   font-size: 11px;
   font-weight: 900;
+}
+
+.hp-damage-report div small {
+  color: #bb6f7a;
+  font-size: 10px;
 }
 
 .hp-damage-report strong {
@@ -2897,6 +2971,10 @@ summary:focus-visible {
 
   .node-details {
     right: 344px;
+  }
+
+  .result-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
