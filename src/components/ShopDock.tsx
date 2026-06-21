@@ -83,14 +83,14 @@ export function ShopDock({
             onClick={onBuyXp}
             disabled={disabled || coins < levelUpCost || playerLevel >= 10}
           >
-            레벨업 XP <b>{levelUpCost}</b>
+            레벨업 XP <b>${levelUpCost}</b>
           </button>
           <button
             type="button"
             onClick={onRollShop}
             disabled={disabled || coins < 2}
           >
-            상점 새로고침 <b>2</b>
+            상점 새로고침 <b>$2</b>
           </button>
         </div>
       </section>
@@ -148,7 +148,7 @@ export function ShopDock({
                       ? `TIER ${tier}`
                       : "BUY"}
                 </small>
-                <strong>{cost > 0 ? cost : "OWNED"}</strong>
+                <strong>{cost > 0 ? `$${cost}` : "OWNED"}</strong>
               </span>
             </button>
           );

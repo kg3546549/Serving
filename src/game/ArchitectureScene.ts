@@ -55,6 +55,7 @@ interface NodeView {
   queueText?: Phaser.GameObjects.Text;
   stateText?: Phaser.GameObjects.Text;
   modulesGlow?: Phaser.GameObjects.Graphics;
+  starText?: Phaser.GameObjects.Text;
 }
 
 interface GridCellView {
@@ -167,6 +168,7 @@ export class ArchitectureScene extends Phaser.Scene {
   private isWaveRunning = false;
   private runtimeState: RuntimeSimulationState | null = null;
   private runtimeTickTimer: Phaser.Time.TimerEvent | null = null;
+  private longPressTimer: Phaser.Time.TimerEvent | null = null;
   private runtimePacketPhases = new Map<number, RuntimePacket["phase"]>();
   private progress: LiveWaveMetrics = {
     completed: 0,
@@ -425,8 +427,8 @@ export class ArchitectureScene extends Phaser.Scene {
     const boardCenterY = board.top + board.height / 2;
     const viewportWidth = camera.width / camera.zoom;
     const viewportHeight = camera.height / camera.zoom;
-    const width = Math.max(board.width + 760, viewportWidth + 360);
-    const height = Math.max(board.height + 560, viewportHeight + 260);
+    const width = Math.max(board.width + 2000, viewportWidth + 1600);
+    const height = Math.max(board.height + 1600, viewportHeight + 1200);
     const x = boardCenterX - width / 2;
     const y = boardCenterY - height / 2;
 
@@ -653,9 +655,20 @@ export class ArchitectureScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
     const dot = this.createNodeStatusDot(30, 24);
-    container.add([pressure, shadow, halo, body, stateText, label, queueText, dot]);
+    const starText = this.add
+      .text(0, -45, "", {
+        color: "#fbbf24",
+        fontFamily: "Pretendard",
+        fontSize: "14px",
+        fontStyle: "bold",
+        stroke: "#ffffff",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
+    container.add([pressure, shadow, halo, body, stateText, label, queueText, dot, starText]);
     this.makeConnectable(container, id);
-    return { id, container, pressure, queueText, stateText };
+    return { id, container, pressure, queueText, stateText, starText };
   }
 
   private createLoadBalancerNode(position: Phaser.Math.Vector2): NodeView {
@@ -672,9 +685,20 @@ export class ArchitectureScene extends Phaser.Scene {
     const label = this.createNodeLabel("Load Balancer", 0, 54);
     const sub = this.createNodeSubLabel("RR", 0, 74);
     const dot = this.createNodeStatusDot(30, 24);
-    container.add([shadow, halo, body, label, sub, dot]);
+    const starText = this.add
+      .text(0, -45, "", {
+        color: "#fbbf24",
+        fontFamily: "Pretendard",
+        fontSize: "14px",
+        fontStyle: "bold",
+        stroke: "#ffffff",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
+    container.add([shadow, halo, body, label, sub, dot, starText]);
     this.makeConnectable(container, "loadBalancer");
-    return { id: "loadBalancer", container };
+    return { id: "loadBalancer", container, starText };
   }
 
   private createDatabaseNode(position: Phaser.Math.Vector2): NodeView {
@@ -707,16 +731,28 @@ export class ArchitectureScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
     const dot = this.createNodeStatusDot(30, 24);
+    const starText = this.add
+      .text(0, -45, "", {
+        color: "#fbbf24",
+        fontFamily: "Pretendard",
+        fontSize: "14px",
+        fontStyle: "bold",
+        stroke: "#ffffff",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
     container.add([
       pressure,
       shadow,
       halo,
       tile,
       database,
-      stateText,
       label,
+      stateText,
       queueText,
       dot,
+      starText,
     ]);
     this.makeConnectable(container, "database");
     return {
@@ -725,6 +761,7 @@ export class ArchitectureScene extends Phaser.Scene {
       pressure,
       queueText,
       stateText,
+      starText,
     };
   }
 
@@ -782,11 +819,31 @@ export class ArchitectureScene extends Phaser.Scene {
         container.setScale(1.08);
       }
     });
-    container.on("pointerout", () => container.setScale(1));
+    container.on("pointerout", () => {
+      container.setScale(1);
+      this.cancelLongPress();
+    });
+    container.on("pointerup", () => {
+      this.cancelLongPress();
+    });
     container.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       const shiftConnect = Boolean(
         (pointer.event as MouseEvent | undefined)?.shiftKey,
       );
+      if (
+        nodeId !== "entry" &&
+        nodeId !== "exit" &&
+        isArchitectureNodePlaced(this.architecture, nodeId) &&
+        pointer.button === 0 &&
+        !pointer.rightButtonDown() &&
+        !shiftConnect
+      ) {
+        this.cancelLongPress();
+        this.longPressTimer = this.time.delayedCall(800, () => {
+          this.triggerNodeUnplace(nodeId);
+          this.longPressTimer = null;
+        });
+      }
       if (
         (nodeId === "entry" || nodeId === "exit") &&
         pointer.button === 0 &&
@@ -832,6 +889,35 @@ export class ArchitectureScene extends Phaser.Scene {
     });
   }
 
+  private cancelLongPress(): void {
+    if (this.longPressTimer) {
+      this.longPressTimer.destroy();
+      this.longPressTimer = null;
+    }
+  }
+
+  private triggerNodeUnplace(nodeId: ArchitectureNodeId): void {
+    const store = useGameStore.getState();
+    const hasEmptySlot = store.inventory.some((slot) => slot === null);
+    if (!hasEmptySlot) {
+      this.statusText.setText("보유 장비 슬롯에 빈 자리가 없습니다!");
+      this.cameras.main.shake(150, 0.003);
+      const pos = this.getNodePosition(nodeId);
+      this.playParticleBurst(
+        pos.x,
+        pos.y,
+        COLORS.red,
+        12
+      );
+      return;
+    }
+
+    const pos = this.getNodePosition(nodeId);
+    this.playMoneyFlyEffect(pos.x, pos.y);
+    store.unplaceNode(nodeId);
+    this.statusText.setText("장비가 보유 장비 슬롯으로 회수되었습니다.");
+  }
+
   private bindPointerDrawing(): void {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       if (this.boardPanGesture && pointer.isDown) {
@@ -866,6 +952,7 @@ export class ArchitectureScene extends Phaser.Scene {
       if (movement < 9 && !this.nodeGesture.dragged) {
         return;
       }
+      this.cancelLongPress();
       this.nodeGesture.dragged = true;
       const source = this.getNodePosition(this.nodeGesture.nodeId);
       this.previewGraphics.clear();
@@ -921,6 +1008,7 @@ export class ArchitectureScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      this.cancelLongPress();
       if (this.suppressBoardPanUntilPointerUp) {
         this.suppressBoardPanUntilPointerUp = false;
         return;
@@ -1146,6 +1234,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.refreshGrid();
     this.showLinkBudget();
     this.applyNodeModulesVisuals(this.architecture);
+    this.applyNodeStarVisuals(this.architecture);
     if (playBuildEffect) {
       const target = [...this.nodes.values()].find(
         (node) => node.container.visible && node.container.scaleX === 1,
@@ -1156,11 +1245,38 @@ export class ArchitectureScene extends Phaser.Scene {
     }
   }
 
+  private applyNodeStarVisuals(architecture: ArchitectureConfig): void {
+    const state = useGameStore.getState();
+    const allEquipment = [
+      ...state.inventory.filter((item): item is NodeInstance => item !== null),
+      ...Object.values(state.deployedEquipment),
+    ];
+    const byId = new Map(allEquipment.map((item) => [item.id, item]));
+
+    for (const role of ["serverA", "serverB", "database", "loadBalancer"] as const) {
+      const nodeView = this.nodes.get(role);
+      if (!nodeView) continue;
+
+      const instanceId = architecture.boardSlots[role];
+      const item = instanceId ? byId.get(instanceId) : undefined;
+
+      if (nodeView.starText) {
+        if (item && item.starLevel > 0) {
+          nodeView.starText.setText("★".repeat(item.starLevel));
+        } else {
+          nodeView.starText.setText("");
+        }
+      }
+    }
+  }
+
   private applyNodeModulesVisuals(architecture: ArchitectureConfig): void {
-    const owned = useGameStore.getState().inventory.filter(
-      (item): item is NodeInstance => item !== null,
-    );
-    const byId = new Map(owned.map((item) => [item.id, item]));
+    const state = useGameStore.getState();
+    const allEquipment = [
+      ...state.inventory.filter((item): item is NodeInstance => item !== null),
+      ...Object.values(state.deployedEquipment),
+    ];
+    const byId = new Map(allEquipment.map((item) => [item.id, item]));
 
     for (const role of ["serverA", "serverB", "database"] as const) {
       const nodeView = this.nodes.get(role);
@@ -2107,10 +2223,10 @@ export class ArchitectureScene extends Phaser.Scene {
     architecture: ArchitectureConfig,
   ): Promise<void> {
     this.resetTraffic();
-    this.isWaveRunning = true;
     this.cancelPlacement();
     this.runtimePacketPhases.clear();
     await this.showWaveCountdown(wave.id);
+    this.isWaveRunning = true;
   }
 
   update(time: number, delta: number): void {
@@ -2237,7 +2353,7 @@ export class ArchitectureScene extends Phaser.Scene {
     let totalLen = 0;
     const lengths: number[] = [];
     for (let i = 0; i < points.length - 1; i++) {
-      const len = Phaser.Math.Distance.BetweenPoints(points[i], points[i+1]);
+      const len = Math.abs(points[i+1].x - points[i].x) + Math.abs(points[i+1].y - points[i].y);
       lengths.push(len);
       totalLen += len;
     }
@@ -2248,9 +2364,7 @@ export class ArchitectureScene extends Phaser.Scene {
     for (let i = 0; i < points.length - 1; i++) {
       if (accumulated + lengths[i] >= targetLen) {
         const segRatio = (targetLen - accumulated) / lengths[i];
-        const x = Phaser.Math.Interpolation.Linear([points[i].x, points[i+1].x], segRatio);
-        const y = Phaser.Math.Interpolation.Linear([points[i].y, points[i+1].y], segRatio);
-        return new Phaser.Math.Vector2(x, y);
+        return this.getOrthogonalPoint(points[i], points[i+1], segRatio);
       }
       accumulated += lengths[i];
     }
@@ -2260,7 +2374,7 @@ export class ArchitectureScene extends Phaser.Scene {
   private playMoneyFlyEffect(x: number, y: number): void {
     this.setPacketEffectMetadata("credits");
     const rewardText = this.add
-      .text(x, y - 28, "+2 CREDITS", {
+      .text(x, y - 28, "+$1", {
         fontFamily: "Pretendard",
         fontSize: "17px",
         fontStyle: "bold",
@@ -2283,7 +2397,7 @@ export class ArchitectureScene extends Phaser.Scene {
         .setStrokeStyle(2, 0xffffff, 0.95)
         .setDepth(33);
       const coinMark = this.add
-        .text(x, y, "¢", {
+        .text(x, y, "$", {
           color: "#8f6500",
           fontFamily: "Arial",
           fontSize: "9px",

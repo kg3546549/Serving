@@ -53,6 +53,10 @@ export function App(): React.JSX.Element {
   const [isHelpOpen, setHelpOpen] = useState(false);
   const [selectedNode, setSelectedNode] =
     useState<ArchitectureNodeId | null>(null);
+  const [phaseNotice, setPhaseNotice] = useState<{
+    title: string;
+    detail: string;
+  } | null>(null);
   const [selectedResource, setSelectedResource] = useState<{
     type: ShopItemType;
     instance?: NodeInstance;
@@ -287,6 +291,33 @@ export function App(): React.JSX.Element {
   }, [architecture, worldReady]);
 
   useEffect(() => {
+    if (phase !== "result" || !lastResult) {
+      return;
+    }
+
+    const failedCount = lastResult.metrics.failed;
+    setPhaseNotice({
+      title: "서비스 운영 종료",
+      detail:
+        failedCount > 0
+          ? `정기점검으로 전환합니다 · +$${lastResult.metrics.earnedCoins} · 실패 ${failedCount}건`
+          : `정기점검으로 전환합니다 · +$${lastResult.metrics.earnedCoins} · 안정적으로 마감했습니다`,
+    });
+
+    const continueTimer = window.setTimeout(() => {
+      handleContinue();
+    }, 180);
+    const clearNoticeTimer = window.setTimeout(() => {
+      setPhaseNotice(null);
+    }, 2600);
+
+    return () => {
+      window.clearTimeout(continueTimer);
+      window.clearTimeout(clearNoticeTimer);
+    };
+  }, [handleContinue, lastResult, phase]);
+
+  useEffect(() => {
     if (phase !== "prepare") {
       return;
     }
@@ -431,6 +462,7 @@ export function App(): React.JSX.Element {
             onInspectItem={(item) =>
               setSelectedResource({ type: item.type, instance: item })
             }
+            onSellItem={sellNode}
           />
         )}
       </section>
@@ -468,9 +500,7 @@ export function App(): React.JSX.Element {
           }
         />
       )}
-      {(phase === "result" ||
-        phase === "cleared" ||
-        phase === "defeated") &&
+      {(phase === "cleared" || phase === "defeated") &&
         lastResult && (
           <ResultModal
             result={lastResult}
@@ -485,6 +515,12 @@ export function App(): React.JSX.Element {
             onRestart={handleRestart}
           />
         )}
+      {phaseNotice && (
+        <aside className="phase-notice" aria-live="polite">
+          <strong>{phaseNotice.title}</strong>
+          <span>{phaseNotice.detail}</span>
+        </aside>
+      )}
       {augmentState && (
         <AugmentPopup
           augmentState={augmentState}

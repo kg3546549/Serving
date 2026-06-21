@@ -141,6 +141,8 @@ export function NodeDetails({
         flexDirection: "column",
         gap: "12px",
         width: "310px",
+        maxHeight: "min(380px, calc(100% - 72px))",
+        overflow: "hidden",
         padding: "16px",
         background: "var(--ui-panel-solid)",
         border: "1px solid var(--ui-line)",
@@ -151,7 +153,7 @@ export function NodeDetails({
         boxSizing: "border-box"
       }}
     >
-      <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", position: "relative", borderBottom: "1px solid var(--ui-line)", paddingBottom: "10px" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", position: "relative", borderBottom: "1px solid var(--ui-line)", paddingBottom: "10px", flexShrink: 0 }}>
         {/* 장비 컬러 글로우와 그라데이션이 적용된 대표 아이콘 */}
         <div style={{
           display: "grid",
@@ -200,117 +202,120 @@ export function NodeDetails({
         </button>
       </div>
 
-      {/* 실시간 큐 점유율 원형 차트 (Circular Progress Bar) */}
-      {(isServer || isDb) && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--ui-bg)", padding: "10px", borderRadius: "10px", border: "1px solid var(--ui-line)" }}>
-          <svg width="52" height="52" viewBox="0 0 60 60">
-            <circle cx="30" cy="30" r="20" fill="none" stroke="var(--ui-line-strong)" strokeWidth="4" />
-            <circle cx="30" cy="30" r="20" fill="none" stroke={getAccentColor()} strokeWidth="4"
-                    strokeDasharray={2 * Math.PI * 20}
-                    strokeDashoffset={2 * Math.PI * 20 - (fillPercentage / 100) * (2 * Math.PI * 20)}
-                    strokeLinecap="round"
-                    transform="rotate(-90 30 30)"
-                    style={{ transition: "stroke-dashoffset 0.35s ease" }} />
-          </svg>
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <span style={{ fontSize: "8.5px", color: "var(--ui-muted)", fontWeight: 800 }}>QUEUE STATUS</span>
-            <div style={{ fontSize: "15px", fontWeight: 800, color: "var(--ui-text)" }}>
-              {currentQueue} <span style={{ fontSize: "11px", color: "var(--ui-muted)", fontWeight: 500 }}>/ {maxQueue}</span>
+      {/* 내부 스크롤 본문 */}
+      <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+        {/* 실시간 큐 점유율 원형 차트 (Circular Progress Bar) */}
+        {(isServer || isDb) && (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--ui-bg)", padding: "10px", borderRadius: "10px", border: "1px solid var(--ui-line)", flexShrink: 0 }}>
+            <svg width="52" height="52" viewBox="0 0 60 60">
+              <circle cx="30" cy="30" r="20" fill="none" stroke="var(--ui-line-strong)" strokeWidth="4" />
+              <circle cx="30" cy="30" r="20" fill="none" stroke={getAccentColor()} strokeWidth="4"
+                      strokeDasharray={2 * Math.PI * 20}
+                      strokeDashoffset={2 * Math.PI * 20 - (fillPercentage / 100) * (2 * Math.PI * 20)}
+                      strokeLinecap="round"
+                      transform="rotate(-90 30 30)"
+                      style={{ transition: "stroke-dashoffset 0.35s ease" }} />
+            </svg>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <span style={{ fontSize: "8.5px", color: "var(--ui-muted)", fontWeight: 800 }}>QUEUE STATUS</span>
+              <div style={{ fontSize: "15px", fontWeight: 800, color: "var(--ui-text)" }}>
+                {currentQueue} <span style={{ fontSize: "11px", color: "var(--ui-muted)", fontWeight: 500 }}>/ {maxQueue}</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 장착된 모듈 슬롯 리스트 */}
-      {(isServer || isDb) && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <span style={{ fontSize: "8.5px", color: "var(--ui-blue)", fontWeight: 800, letterSpacing: "0.05em" }}>EQUIPPED MODULE SLOTS</span>
-          <div style={{ display: "flex", gap: "8px" }}>
-            {[0, 1].map((slotIdx) => {
-              const moduleType = modules[slotIdx];
-              return (
-                <div key={slotIdx} style={{
-                  flex: 1,
-                  height: "44px",
-                  border: "1px dashed var(--ui-line-strong)",
-                  borderRadius: "8px",
-                  background: moduleType ? "color-mix(in oklab, var(--ui-blue-soft) 30%, transparent)" : "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "6px 10px",
-                  fontSize: "10px"
-                }}>
-                  {moduleType ? (
-                    <>
-                      <div style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
-                        <span style={{ fontWeight: 800, color: "var(--ui-text)" }}>{moduleType.toUpperCase()}</span>
-                        <span style={{ fontSize: "7.5px", color: "var(--ui-muted)" }}>Slot {slotIdx + 1}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => unequipModule(nodeId as "serverA" | "serverB" | "database", moduleType)}
-                        style={{
-                          background: "color-mix(in oklab, var(--ui-red) 12%, transparent)",
-                          border: "1px solid color-mix(in oklab, var(--ui-red) 25%, transparent)",
-                          color: "var(--ui-red)",
-                          borderRadius: "4px",
-                          padding: "2px 5px",
-                          fontSize: "9px",
-                          fontWeight: 800,
-                          cursor: "pointer"
-                        }}
-                      >
-                        탈착
-                      </button>
-                    </>
-                  ) : (
-                    <span style={{ color: "var(--ui-muted)", fontSize: "9px" }}>Empty Slot</span>
-                  )}
-                </div>
-              );
-            })}
+        {/* 장착된 모듈 슬롯 리스트 */}
+        {(isServer || isDb) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0 }}>
+            <span style={{ fontSize: "8.5px", color: "var(--ui-blue)", fontWeight: 800, letterSpacing: "0.05em" }}>EQUIPPED MODULE SLOTS</span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {[0, 1].map((slotIdx) => {
+                const moduleType = modules[slotIdx];
+                return (
+                  <div key={slotIdx} style={{
+                    flex: 1,
+                    height: "44px",
+                    border: "1px dashed var(--ui-line-strong)",
+                    borderRadius: "8px",
+                    background: moduleType ? "color-mix(in oklab, var(--ui-blue-soft) 30%, transparent)" : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "6px 10px",
+                    fontSize: "10px"
+                  }}>
+                    {moduleType ? (
+                      <>
+                        <div style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
+                          <span style={{ fontWeight: 800, color: "var(--ui-text)" }}>{moduleType.toUpperCase()}</span>
+                          <span style={{ fontSize: "7.5px", color: "var(--ui-muted)" }}>Slot {slotIdx + 1}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => unequipModule(nodeId as "serverA" | "serverB" | "database", moduleType)}
+                          style={{
+                            background: "color-mix(in oklab, var(--ui-red) 12%, transparent)",
+                            border: "1px solid color-mix(in oklab, var(--ui-red) 25%, transparent)",
+                            color: "var(--ui-red)",
+                            borderRadius: "4px",
+                            padding: "2px 5px",
+                            fontSize: "9px",
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          탈착
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ color: "var(--ui-muted)", fontSize: "9px" }}>Empty Slot</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        )}
+
+        <div className="node-details-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px", flexShrink: 0 }}>
+          <span style={{ display: "grid", gap: "2px", padding: "6px 10px", borderRadius: "8px", background: "var(--ui-bg)", border: "1px solid var(--ui-line)" }}>
+            <small style={{ display: "block", fontSize: "8px", color: "var(--ui-muted)", fontWeight: 800 }}>POSITION</small>
+            <strong style={{ color: "var(--ui-text)" }}>
+              {position
+                ? `${Math.round(position.column)}, ${Math.round(position.row)}`
+                : "INVENTORY"}
+            </strong>
+          </span>
+          <span style={{ display: "grid", gap: "2px", padding: "6px 10px", borderRadius: "8px", background: "var(--ui-bg)", border: "1px solid var(--ui-line)" }}>
+            <small style={{ display: "block", fontSize: "8px", color: "var(--ui-muted)", fontWeight: 800 }}>LINKS</small>
+            <strong style={{ color: "var(--ui-text)" }}>
+              {links} / {portLimits.traffic + portLimits.data}
+            </strong>
+          </span>
         </div>
-      )}
 
-      <div className="node-details-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
-        <span style={{ display: "grid", gap: "2px", padding: "6px 10px", borderRadius: "8px", background: "var(--ui-bg)", border: "1px solid var(--ui-line)" }}>
-          <small style={{ display: "block", fontSize: "8px", color: "var(--ui-muted)", fontWeight: 800 }}>POSITION</small>
-          <strong style={{ color: "var(--ui-text)" }}>
-            {position
-              ? `${Math.round(position.column)}, ${Math.round(position.row)}`
-              : "INVENTORY"}
-          </strong>
-        </span>
-        <span style={{ display: "grid", gap: "2px", padding: "6px 10px", borderRadius: "8px", background: "var(--ui-bg)", border: "1px solid var(--ui-line)" }}>
-          <small style={{ display: "block", fontSize: "8px", color: "var(--ui-muted)", fontWeight: 800 }}>LINKS</small>
-          <strong style={{ color: "var(--ui-text)" }}>
-            {links} / {portLimits.traffic + portLimits.data}
-          </strong>
-        </span>
+        <ul style={{ listStyle: "none", fontSize: "10.5px", display: "flex", flexDirection: "column", gap: "4px", borderTop: "1px solid var(--ui-line)", paddingTop: "10px", paddingLeft: 0, margin: 0 }}>
+          {portLimits.traffic > 0 && (
+            <li style={{ color: "var(--ui-text)", padding: "3px 6px", background: "var(--ui-bg)", borderRadius: "4px" }}>
+              트래픽 포트 <b>{portUsage.traffic}</b>/<b>{portLimits.traffic}</b> 사용중
+            </li>
+          )}
+          {portLimits.data > 0 && (
+            <li style={{ color: "var(--ui-text)", padding: "3px 6px", background: "var(--ui-bg)", borderRadius: "4px" }}>
+              데이터 포트 <b>{portUsage.data}</b>/<b>{portLimits.data}</b> 사용중
+            </li>
+          )}
+          {copy.stats.map((stat) => (
+            <li key={stat} style={{ color: "var(--ui-muted)", paddingLeft: "4px" }}>• {stat}</li>
+          ))}
+        </ul>
+        <small className="node-details-hint" style={{ fontSize: "9px", color: "var(--ui-muted)", flexShrink: 0 }}>
+          {nodeId === "entry" || nodeId === "exit"
+            ? "고정 I/O • 드래그로 선 연결"
+            : "드래그로 이동 • 드래그로 선 연결"}
+        </small>
       </div>
-
-      <ul style={{ listStyle: "none", fontSize: "10.5px", display: "flex", flexDirection: "column", gap: "4px", borderTop: "1px solid var(--ui-line)", paddingTop: "10px", paddingLeft: 0, margin: 0 }}>
-        {portLimits.traffic > 0 && (
-          <li style={{ color: "var(--ui-text)", padding: "3px 6px", background: "var(--ui-bg)", borderRadius: "4px" }}>
-            트래픽 포트 <b>{portUsage.traffic}</b>/<b>{portLimits.traffic}</b> 사용중
-          </li>
-        )}
-        {portLimits.data > 0 && (
-          <li style={{ color: "var(--ui-text)", padding: "3px 6px", background: "var(--ui-bg)", borderRadius: "4px" }}>
-            데이터 포트 <b>{portUsage.data}</b>/<b>{portLimits.data}</b> 사용중
-          </li>
-        )}
-        {copy.stats.map((stat) => (
-          <li key={stat} style={{ color: "var(--ui-muted)", paddingLeft: "4px" }}>• {stat}</li>
-        ))}
-      </ul>
-      <small className="node-details-hint" style={{ fontSize: "9px", color: "var(--ui-muted)" }}>
-        {nodeId === "entry" || nodeId === "exit"
-          ? "고정 I/O • 드래그로 선 연결"
-          : "드래그로 이동 • 드래그로 선 연결"}
-      </small>
     </aside>
   );
 }

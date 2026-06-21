@@ -34,7 +34,7 @@ export function ResultModal({
         aria-modal="true"
         aria-labelledby="result-title"
       >
-        <div className="result-status-icon" aria-hidden="true">
+        <div className={`result-status-icon ${result.metrics.passed ? "success" : "failure"}`} aria-hidden="true">
           {result.metrics.passed ? "✓" : "!"}
         </div>
         <h2 id="result-title">{title}</h2>

@@ -100,8 +100,8 @@ const TICK_PROCESS_SERVER_MS = 1_200;
 const TICK_PROCESS_DATABASE_READ_MS = 700;
 const TICK_PROCESS_DATABASE_WRITE_MS = 1_050;
 const TICK_PROCESS_DATABASE_SLOW_MS = 2_100;
-const TICK_LINK_TRAVEL_MS = 150;
-const TICK_LINK_HANDOFF_MS = 60;
+const TICK_LINK_TRAVEL_MS = 250;
+const TICK_LINK_HANDOFF_MS = 100;
 
 function createNodeState(nodeId: ArchitectureNodeId): RuntimeNodeState {
   return { nodeId, queue: [], active: [] };
@@ -721,7 +721,7 @@ export function buildWaveResultFromRuntime(
       durationMs: state.timeMs,
       peakServerQueue: state.metrics.peakServerQueue,
       peakDatabaseQueue: state.metrics.peakDatabaseQueue,
-      earnedCoins: state.metrics.completed * 2 + (passed ? 35 : 15),
+      earnedCoins: state.metrics.completed * 1 + (passed ? 35 : 15),
       passed,
     },
     bottleneckNode,

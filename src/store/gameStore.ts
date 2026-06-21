@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import { STAGE_ONE_WAVES } from "../campaign/campaignData";
+import { playRequestSuccess } from "../audio/audioDirector";
 import type {
   ArchitectureConfig,
   ArchitectureNodeId,
@@ -68,6 +69,7 @@ interface GameState {
   playerXp: number;
   shopItems: (ShopItemType | null)[];
   inventory: (NodeInstance | null)[];
+  deployedEquipment: Record<string, NodeInstance>;
   augmentState: AugmentState | null;
   pendingInfrastructureUpgrades: number;
   maintenanceMode: MaintenanceMode;
@@ -107,6 +109,7 @@ interface GameState {
   stepSimulation: (deltaMs: number) => void;
   equipModule: (nodeId: ArchitectureNodeId, instanceId: string) => void;
   unequipModule: (nodeId: ArchitectureNodeId, moduleType: BuildSystemType) => void;
+  unplaceNode: (nodeId: ArchitectureNodeId) => void;
 }
 
 export const INVENTORY_CAPACITY = 8;
@@ -198,12 +201,15 @@ function createStarterState(): Pick<
   | "playerXp"
   | "shopItems"
   | "inventory"
+  | "deployedEquipment"
   | "architecture"
 > {
   const inventory = createStarterInventory();
+  const deployedEquipment: Record<string, NodeInstance> = {};
   const architecture = normalizeArchitecture(
     createStarterArchitecture(),
     inventory,
+    deployedEquipment,
   );
   return {
     coins: 24,
@@ -212,6 +218,7 @@ function createStarterState(): Pick<
     playerXp: 0,
     shopItems: ["ec2", "rdsPrimary", "apiGateway", "apache", "sqs"],
     inventory,
+    deployedEquipment,
     architecture,
   };
 }
@@ -417,12 +424,13 @@ function calculatePerformance(
 function normalizeArchitecture(
   architecture: ArchitectureConfig,
   inventory: (NodeInstance | null)[],
+  deployedEquipment: Record<string, NodeInstance> = {},
 ): ArchitectureConfig {
-  const ids = new Set(
-    inventory
-      .filter((item): item is NodeInstance => item !== null)
-      .map((item) => item.id),
-  );
+  const allEquipment = [
+    ...inventory.filter((item): item is NodeInstance => item !== null),
+    ...Object.values(deployedEquipment),
+  ];
+  const ids = new Set(allEquipment.map((item) => item.id));
   const boardSlots = { ...architecture.boardSlots };
   const nodePositions = { ...architecture.nodePositions };
 
@@ -455,14 +463,14 @@ function normalizeArchitecture(
         placedNodes.has(connection.to),
     ),
   };
-  const databaseItem = inventory.find(
+  const databaseItem = allEquipment.find(
     (item) => item?.id === boardSlots.database,
   );
   normalized.databaseIndexed =
     databaseItem?.augment === "dbQuery" ||
     databaseItem?.augment === "dax" ||
-    inventory.some((item) => item?.type === "redis");
-  normalized.performance = calculatePerformance(inventory, normalized);
+    allEquipment.some((item) => item?.type === "redis");
+  normalized.performance = calculatePerformance(allEquipment, normalized);
   return normalized;
 }
 
@@ -494,63 +502,141 @@ function getAugmentOptions(item: NodeInstance): AugmentType[] {
   return [...new Set(options)].slice(0, 3);
 }
 
+interface MergeCandidate {
+  item: NodeInstance;
+  source: "inventory" | "deployed";
+  index?: number;
+  role?: string;
+}
+
 function mergeInventory(
   inventory: (NodeInstance | null)[],
   architecture: ArchitectureConfig,
+  deployedEquipment: Record<string, NodeInstance> = {},
 ): {
   inventory: (NodeInstance | null)[];
+  deployedEquipment: Record<string, NodeInstance>;
   architecture: ArchitectureConfig;
   merged?: NodeInstance;
 } {
-  const groups = new Map<string, Array<{ item: NodeInstance; index: number }>>();
-  inventory.forEach((item, index) => {
-    if (!item || item.starLevel >= 3) {
-      return;
-    }
-    const key = `${item.type}:${item.starLevel}`;
-    const group = groups.get(key) ?? [];
-    group.push({ item, index });
-    groups.set(key, group);
-  });
-  const group = [...groups.values()].find((items) => items.length >= 3);
-  if (!group) {
-    return { inventory, architecture };
-  }
-
-  const consumed = group.slice(0, 3);
-  const consumedIds = new Set(consumed.map(({ item }) => item.id));
-  const merged: NodeInstance = {
-    id: uuidv4(),
-    type: consumed[0].item.type,
-    starLevel: (consumed[0].item.starLevel + 1) as 2 | 3,
-  };
-  const nextInventory = [...inventory];
-  consumed.forEach(({ index }) => {
-    nextInventory[index] = null;
-  });
-  nextInventory[consumed[0].index] = merged;
-
-  const nextArchitecture: ArchitectureConfig = {
+  let currentInventory = [...inventory];
+  let currentDeployed = { ...deployedEquipment };
+  let currentArchitecture = {
     ...architecture,
     boardSlots: { ...architecture.boardSlots },
     nodePositions: { ...architecture.nodePositions },
   };
-  const occupiedRoles = DEPLOYABLE_ROLES.filter((role) =>
-    consumedIds.has(nextArchitecture.boardSlots[role] ?? ""),
-  );
-  occupiedRoles.forEach((role, index) => {
-    if (index === 0) {
-      nextArchitecture.boardSlots[role] = merged.id;
-    } else {
-      nextArchitecture.boardSlots[role] = null;
-      delete nextArchitecture.nodePositions[role];
+  let lastMerged: NodeInstance | undefined = undefined;
+
+  while (true) {
+    const candidates: MergeCandidate[] = [];
+    currentInventory.forEach((item, index) => {
+      if (item && item.starLevel < 3) {
+        candidates.push({ item, source: "inventory", index });
+      }
+    });
+
+    for (const role of DEPLOYABLE_ROLES) {
+      const instanceId = currentArchitecture.boardSlots[role];
+      if (instanceId) {
+        const item = currentDeployed[instanceId];
+        if (item && item.starLevel < 3) {
+          candidates.push({ item, source: "deployed", role });
+        }
+      }
     }
-  });
+
+    const groups = new Map<string, MergeCandidate[]>();
+    candidates.forEach((cand) => {
+      const key = `${cand.item.type}:${cand.item.starLevel}`;
+      const group = groups.get(key) ?? [];
+      group.push(cand);
+      groups.set(key, group);
+    });
+
+    const group = [...groups.values()].find((items) => items.length >= 3);
+    if (!group) {
+      break;
+    }
+
+    const consumed = group.slice(0, 3);
+    
+    // 모듈 수집
+    const collectedModules: BuildSystemType[] = [];
+    consumed.forEach((cand) => {
+      if (cand.item.modules) {
+        cand.item.modules.forEach((mod) => {
+          if (!collectedModules.includes(mod)) {
+            collectedModules.push(mod);
+          }
+        });
+      }
+    });
+
+    const merged: NodeInstance = {
+      id: uuidv4(),
+      type: consumed[0].item.type,
+      starLevel: (consumed[0].item.starLevel + 1) as 2 | 3,
+      modules: collectedModules.slice(0, 2),
+    };
+    lastMerged = merged;
+
+    // 소모되기 전의 원래 위치 및 역할 기억
+    const deployedConsumed = consumed.filter((c) => c.source === "deployed");
+    let primaryRole: DeployableRole | undefined = undefined;
+    let originalPosition: GridPosition | undefined = undefined;
+    if (deployedConsumed.length > 0) {
+      primaryRole = deployedConsumed[0].role as DeployableRole;
+      originalPosition = currentArchitecture.nodePositions[primaryRole as ArchitectureNodeId];
+    }
+
+    // 소모 처리
+    consumed.forEach((cand) => {
+      if (cand.source === "inventory") {
+        currentInventory[cand.index!] = null;
+      } else if (cand.source === "deployed") {
+        const instanceId = cand.item.id;
+        delete currentDeployed[instanceId];
+        currentArchitecture.boardSlots[cand.role as DeployableRole] = null;
+        delete currentArchitecture.nodePositions[cand.role as ArchitectureNodeId];
+      }
+    });
+
+    // 남은 모듈은 인벤토리에 환수
+    const remainingModules = collectedModules.slice(2);
+    remainingModules.forEach((mod) => {
+      const emptyIndex = currentInventory.findIndex((slot) => slot === null);
+      if (emptyIndex >= 0) {
+        currentInventory[emptyIndex] = {
+          id: uuidv4(),
+          type: mod,
+          starLevel: 1,
+        };
+      }
+    });
+
+    // 합성 결과 배치
+    if (primaryRole) {
+      currentArchitecture.boardSlots[primaryRole] = merged.id;
+      if (originalPosition) {
+        currentArchitecture.nodePositions[primaryRole as ArchitectureNodeId] = originalPosition;
+      }
+      currentDeployed[merged.id] = merged;
+    } else {
+      const firstInventoryIndex = consumed[0].index!;
+      currentInventory[firstInventoryIndex] = merged;
+    }
+  }
 
   return {
-    inventory: nextInventory,
-    architecture: normalizeArchitecture(nextArchitecture, nextInventory),
-    merged,
+    inventory: currentInventory,
+    deployedEquipment: currentDeployed,
+    architecture: normalizeArchitecture(
+      currentArchitecture,
+      currentInventory,
+      currentDeployed,
+    ),
+    merged: lastMerged,
   };
 }
 
@@ -564,6 +650,7 @@ export const useGameStore = create<GameState>((set) => ({
   playerXp: 0,
   shopItems: [null, null, null, null, null],
   inventory: Array<NodeInstance | null>(INVENTORY_CAPACITY).fill(null),
+  deployedEquipment: {},
   augmentState: null,
   pendingInfrastructureUpgrades: 0,
   maintenanceMode: "initial",
@@ -728,14 +815,16 @@ export const useGameStore = create<GameState>((set) => ({
         type: shopItem,
         starLevel: 1,
       };
-      const merge = mergeInventory(nextInventory, state.architecture);
+      const merge = mergeInventory(nextInventory, state.architecture, state.deployedEquipment);
       return {
         coins: state.coins - price,
         shopItems: nextShop,
         inventory: merge.inventory,
+        deployedEquipment: merge.deployedEquipment,
         architecture: normalizeArchitecture(
           merge.architecture,
           merge.inventory,
+          merge.deployedEquipment,
         ),
         augmentState: merge.merged
           ? {
@@ -750,26 +839,53 @@ export const useGameStore = create<GameState>((set) => ({
 
   sellNode: (instanceId) =>
     set((state) => {
-      const index = state.inventory.findIndex(
-        (item) => item?.id === instanceId,
-      );
-      if (index < 0) {
+      let itemIndex = state.inventory.findIndex((candidate) => candidate?.id === instanceId);
+      let item: NodeInstance | null = null;
+      const nextInventory = [...state.inventory];
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+
+      if (itemIndex >= 0) {
+        item = state.inventory[itemIndex];
+        nextInventory[itemIndex] = null;
+      } else if (state.deployedEquipment[instanceId]) {
+        item = state.deployedEquipment[instanceId];
+        delete nextDeployedEquipment[instanceId];
+      }
+
+      if (!item) {
         return state;
       }
-      const item = state.inventory[index]!;
+
+      const isPassive = isMaintenanceItem(item.type);
+      const spec = isPassive ? (MAINTENANCE_CATALOG as any)[item.type] : (SYSTEM_CATALOG as any)[item.type];
+      const baseCost = spec ? spec.cost : 0;
+
       const refundMultiplier =
-        item.starLevel === 3 ? 6 : item.starLevel === 2 ? 2.5 : 1;
-      const nextInventory = [...state.inventory];
-      nextInventory[index] = null;
+        item.starLevel === 3 ? 4.5 : item.starLevel === 2 ? 1.5 : 0.5;
+
+      const nextArchitecture = {
+        ...state.architecture,
+        boardSlots: { ...state.architecture.boardSlots },
+        nodePositions: { ...state.architecture.nodePositions },
+      };
+      for (const role of DEPLOYABLE_ROLES) {
+        if (nextArchitecture.boardSlots[role] === instanceId) {
+          nextArchitecture.boardSlots[role] = null;
+          delete nextArchitecture.nodePositions[role];
+        }
+      }
+
+      const normalized = normalizeArchitecture(
+        nextArchitecture,
+        nextInventory,
+        nextDeployedEquipment,
+      );
+
       return {
-        coins:
-          state.coins +
-          Math.floor(SYSTEM_CATALOG[item.type].cost * refundMultiplier),
+        coins: state.coins + Math.floor(baseCost * refundMultiplier),
         inventory: nextInventory,
-        architecture: normalizeArchitecture(
-          state.architecture,
-          nextInventory,
-        ),
+        deployedEquipment: nextDeployedEquipment,
+        architecture: normalized,
       };
     }),
 
@@ -785,11 +901,20 @@ export const useGameStore = create<GameState>((set) => ({
             ? { ...item, augment: augmentType }
             : item,
       );
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+      if (nextDeployedEquipment[targetId]) {
+        nextDeployedEquipment[targetId] = {
+          ...nextDeployedEquipment[targetId],
+          augment: augmentType,
+        };
+      }
       return {
         inventory: nextInventory,
+        deployedEquipment: nextDeployedEquipment,
         architecture: normalizeArchitecture(
           state.architecture,
           nextInventory,
+          nextDeployedEquipment,
         ),
         augmentState: null,
       };
@@ -828,13 +953,21 @@ export const useGameStore = create<GameState>((set) => ({
       }
       const item = state.inventory.find(
         (candidate) => candidate?.id === instanceId,
-      );
+      ) || state.deployedEquipment[instanceId];
       if (
         !item ||
         !roleAcceptsEquipment(nodeId as DeployableRole, item)
       ) {
         return state;
       }
+      const nextInventory = [...state.inventory];
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+      const itemIndex = state.inventory.findIndex((candidate) => candidate?.id === instanceId);
+      if (itemIndex >= 0) {
+        nextInventory[itemIndex] = null;
+      }
+      nextDeployedEquipment[instanceId] = item;
+
       const nextArchitecture: ArchitectureConfig = {
         ...state.architecture,
         boardSlots: { ...state.architecture.boardSlots },
@@ -851,7 +984,8 @@ export const useGameStore = create<GameState>((set) => ({
       
       const normalized = normalizeArchitecture(
         nextArchitecture,
-        state.inventory,
+        nextInventory,
+        nextDeployedEquipment,
       );
       
       let nextRuntime = state.runtimeState;
@@ -860,6 +994,8 @@ export const useGameStore = create<GameState>((set) => ({
       }
 
       return {
+        inventory: nextInventory,
+        deployedEquipment: nextDeployedEquipment,
         architecture: normalized,
         runtimeState: nextRuntime,
       };
@@ -993,8 +1129,12 @@ export const useGameStore = create<GameState>((set) => ({
       const nextFailed = nextRuntime.metrics.dropped + nextRuntime.metrics.timedOut;
       const diffFailed = nextFailed - prevFailed;
 
+      if (diffCompleted > 0) {
+        playRequestSuccess();
+      }
+
       const hpDamage = diffFailed * 2;
-      const coinsGained = diffCompleted * 2;
+      const coinsGained = diffCompleted * 1;
 
       const serviceHp = Math.max(0, state.serviceHp - hpDamage);
       const coins = state.coins + coinsGained;
@@ -1048,20 +1188,20 @@ export const useGameStore = create<GameState>((set) => ({
       const nextInventory = [...state.inventory];
       nextInventory[itemIndex] = null;
 
-      const targetIndex = nextInventory.findIndex((item) => item?.id === targetInstanceId);
-      if (targetIndex >= 0) {
-        const targetNode = nextInventory[targetIndex]!;
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+      const targetNode = nextDeployedEquipment[targetInstanceId];
+      if (targetNode) {
         const currentModules = targetNode.modules ?? [];
         if (currentModules.length >= 2) {
           return state;
         }
-        nextInventory[targetIndex] = {
+        nextDeployedEquipment[targetInstanceId] = {
           ...targetNode,
           modules: [...currentModules, moduleType],
         };
       }
 
-      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory);
+      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory, nextDeployedEquipment);
       
       let nextRuntime = state.runtimeState;
       if (nextRuntime && state.phase === "running") {
@@ -1070,6 +1210,7 @@ export const useGameStore = create<GameState>((set) => ({
 
       return {
         inventory: nextInventory,
+        deployedEquipment: nextDeployedEquipment,
         architecture: nextArchitecture,
         runtimeState: nextRuntime,
       };
@@ -1084,14 +1225,14 @@ export const useGameStore = create<GameState>((set) => ({
       if (emptyIndex < 0) return state;
 
       const nextInventory = [...state.inventory];
-      const targetIndex = nextInventory.findIndex((item) => item?.id === targetInstanceId);
-      if (targetIndex < 0) return state;
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+      const targetNode = nextDeployedEquipment[targetInstanceId];
+      if (!targetNode) return state;
 
-      const targetNode = nextInventory[targetIndex]!;
       const currentModules = targetNode.modules ?? [];
       if (!currentModules.includes(moduleType)) return state;
 
-      nextInventory[targetIndex] = {
+      nextDeployedEquipment[targetInstanceId] = {
         ...targetNode,
         modules: currentModules.filter((m) => m !== moduleType),
       };
@@ -1102,7 +1243,7 @@ export const useGameStore = create<GameState>((set) => ({
         starLevel: 1,
       };
 
-      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory);
+      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory, nextDeployedEquipment);
       
       let nextRuntime = state.runtimeState;
       if (nextRuntime && state.phase === "running") {
@@ -1111,7 +1252,62 @@ export const useGameStore = create<GameState>((set) => ({
 
       return {
         inventory: nextInventory,
+        deployedEquipment: nextDeployedEquipment,
         architecture: nextArchitecture,
+        runtimeState: nextRuntime,
+      };
+    }),
+
+  unplaceNode: (nodeId) =>
+    set((state) => {
+      const hasEmptySlot = state.inventory.some((slot) => slot === null);
+      if (!hasEmptySlot) {
+        return state;
+      }
+
+      const instanceId = state.architecture.boardSlots[nodeId as DeployableRole];
+      if (!instanceId) {
+        return state;
+      }
+
+      const item = state.deployedEquipment[instanceId];
+      if (!item) {
+        return state;
+      }
+
+      const nextInventory = [...state.inventory];
+      const nextDeployedEquipment = { ...state.deployedEquipment };
+
+      const emptyIndex = nextInventory.findIndex((slot) => slot === null);
+      if (emptyIndex >= 0) {
+        nextInventory[emptyIndex] = item;
+      }
+
+      delete nextDeployedEquipment[instanceId];
+
+      const nextArchitecture = {
+        ...state.architecture,
+        boardSlots: { ...state.architecture.boardSlots },
+        nodePositions: { ...state.architecture.nodePositions },
+      };
+      nextArchitecture.boardSlots[nodeId as DeployableRole] = null;
+      delete nextArchitecture.nodePositions[nodeId];
+
+      const normalized = normalizeArchitecture(
+        nextArchitecture,
+        nextInventory,
+        nextDeployedEquipment,
+      );
+
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, normalized);
+      }
+
+      return {
+        inventory: nextInventory,
+        deployedEquipment: nextDeployedEquipment,
+        architecture: normalized,
         runtimeState: nextRuntime,
       };
     }),

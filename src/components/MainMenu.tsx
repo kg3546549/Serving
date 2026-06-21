@@ -157,7 +157,7 @@ function GameGuide(): React.JSX.Element {
           <strong>한 웨이브의 진행 방식</strong>
         </header>
         <div className="guide-flow-track">
-          <span><b>1</b><strong>구매</strong><small>Credits로 장비 확보</small></span>
+          <span><b>1</b><strong>구매</strong><small>재화($)로 장비 확보</small></span>
           <i>→</i>
           <span><b>2</b><strong>배치</strong><small>보드에 자유 배치</small></span>
           <i>→</i>
@@ -200,7 +200,7 @@ function GameGuide(): React.JSX.Element {
           <small>PROGRESSION</small>
           <strong>재화로 성장합니다</strong>
           <ul>
-            <li><b>Credits</b><span>장비 구매, 상점 갱신, 레벨업에 사용</span></li>
+            <li><b>재화($)</b><span>장비 구매, 상점 갱신, 레벨업에 사용</span></li>
             <li><b>Player Level</b><span>레벨업 비용은 증가하고 고티어 등장률 상승</span></li>
             <li><b>3-COPY</b><span>같은 장비 3개가 합쳐져 별 등급 상승</span></li>
             <li><b>Hot Plug</b><span>운영 중 재배선 가능, 끊긴 패킷은 손실</span></li>

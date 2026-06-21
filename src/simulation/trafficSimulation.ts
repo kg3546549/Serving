@@ -181,9 +181,9 @@ export interface ArchitectureConfig {
 }
 
 export const LINK_TIERS: readonly LinkTier[] = [
-  { level: 1, maxEdgeCells: 4, totalCells: 8, upgradeCost: 60 },
-  { level: 2, maxEdgeCells: 6, totalCells: 22, upgradeCost: 100 },
-  { level: 3, maxEdgeCells: 9, totalCells: 36, upgradeCost: null },
+  { level: 1, maxEdgeCells: 999, totalCells: 3, upgradeCost: 60 },
+  { level: 2, maxEdgeCells: 999, totalCells: 6, upgradeCost: 100 },
+  { level: 3, maxEdgeCells: 999, totalCells: 10, upgradeCost: null },
 ] as const;
 
 export const BOARD_TIERS: readonly BoardTier[] = [
@@ -395,21 +395,12 @@ export function validateArchitectureConnections(
         reason: "현재 보드 영역 밖의 장비는 링크를 사용할 수 없습니다.",
       };
     }
-    const length = getConnectionLength(architecture, connection);
-    if (length > tier.maxEdgeCells) {
-      return {
-        valid: false,
-        reason: `LINK LV.${tier.level}의 링크 하나는 최대 ${tier.maxEdgeCells}칸입니다.`,
-        kind,
-        length,
-      };
-    }
   }
-  const totalCells = getTotalConnectionCells(architecture);
-  if (totalCells > tier.totalCells) {
+  const totalConnections = architecture.connections.length;
+  if (totalConnections > tier.totalCells) {
     return {
       valid: false,
-      reason: `LINK LV.${tier.level}의 전체 링크 용량은 ${tier.totalCells}칸입니다.`,
+      reason: `LINK LV.${tier.level}의 전체 링크 용량은 ${tier.totalCells}개입니다.`,
     };
   }
   return validatePortUsage(architecture);
@@ -592,8 +583,8 @@ const DATABASE_SLOW_READ_MS = 2_200;
 const DATABASE_INDEXED_READ_MS = 380;
 const DATABASE_INDEXED_WRITE_MS = 820;
 const DATABASE_INDEXED_SLOW_READ_MS = 850;
-const LINK_TRAVEL_MS = 150;
-const LINK_HANDOFF_MS = 60;
+const LINK_TRAVEL_MS = 125;
+const LINK_HANDOFF_MS = 50;
 const MAX_SIMULATION_MS = 60_000;
 
 export const SYSTEM_CATALOG: Readonly<
@@ -1450,7 +1441,7 @@ export function simulateTrafficWave(
       durationMs: now,
       peakServerQueue,
       peakDatabaseQueue: database.peakQueue,
-      earnedCoins: completed * 2 + (passed ? 35 : 15),
+      earnedCoins: completed * 1 + (passed ? 35 : 15),
       passed,
     },
     bottleneckNode,

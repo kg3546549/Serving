@@ -8,6 +8,8 @@ import {
   getBoardTier,
   getLinkTier,
   getTotalConnectionCells,
+  isMaintenanceItem,
+  MAINTENANCE_CATALOG,
   SYSTEM_CATALOG,
 } from "../simulation/trafficSimulation";
 import { ResourceIcon } from "./DeviceIcon";
@@ -25,6 +27,7 @@ interface InventoryDockProps {
   ) => void;
   onCancelPlacement: () => void;
   onInspectItem: (item: NodeInstance) => void;
+  onSellItem: (instanceId: string) => void;
 }
 
 interface InventoryCardProps {
@@ -41,6 +44,7 @@ interface InventoryCardProps {
   ) => void;
   onCancelPlacement: () => void;
   onInspectItem: (item: NodeInstance) => void;
+  onSellItem: (instanceId: string) => void;
 }
 
 function InventoryCard({
@@ -52,11 +56,15 @@ function InventoryCard({
   onDropNode,
   onCancelPlacement,
   onInspectItem,
+  onSellItem,
 }: InventoryCardProps): React.JSX.Element {
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
   const suppressClickRef = useRef(false);
-  const spec = SYSTEM_CATALOG[item.type];
+  const isPassive = isMaintenanceItem(item.type);
+  const spec = isPassive
+    ? (MAINTENANCE_CATALOG as any)[item.type]
+    : (SYSTEM_CATALOG as any)[item.type];
   const deployable = preferredRole !== null;
   const roleLabel = deployedRole
     ? deployedRole === "database"
@@ -68,97 +76,114 @@ function InventoryCard({
       ? "드래그하여 배치"
       : "패시브 적용";
 
+  const baseCost = spec ? spec.cost : 0;
+  const refundMultiplier = item.starLevel === 3 ? 4.5 : item.starLevel === 2 ? 1.5 : 0.5;
+  const sellValue = Math.floor(baseCost * refundMultiplier);
+
   return (
-    <button
-      type="button"
-      className={`inventory-card ${deployedRole ? "deployed" : ""} ${
-        deployable ? "" : "passive"
-      }`}
-      aria-disabled={disabled && deployable}
-      onClick={() => {
-        if (suppressClickRef.current) {
-          suppressClickRef.current = false;
-          return;
-        }
-        if (preferredRole && !disabled) {
+    <div className="inventory-card-wrapper" style={{ position: "relative" }}>
+      <button
+        type="button"
+        className={`inventory-card ${deployedRole ? "deployed" : ""} ${
+          deployable ? "" : "passive"
+        }`}
+        aria-disabled={disabled && deployable}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          if (preferredRole && !disabled) {
+            onSelectNode(preferredRole, item.id);
+          }
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onInspectItem(item);
+        }}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || disabled || !preferredRole) {
+            return;
+          }
+          event.currentTarget.setPointerCapture(event.pointerId);
+          pointerStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+          };
+          draggedRef.current = false;
           onSelectNode(preferredRole, item.id);
+        }}
+        onPointerMove={(event) => {
+          const start = pointerStartRef.current;
+          if (!start) {
+            return;
+          }
+          draggedRef.current =
+            draggedRef.current ||
+            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7;
+        }}
+        onPointerUp={(event) => {
+          if (!pointerStartRef.current) {
+            return;
+          }
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          if (draggedRef.current && preferredRole) {
+            suppressClickRef.current = true;
+            onDropNode(
+              preferredRole,
+              event.clientX,
+              event.clientY,
+              item.id,
+            );
+          }
+          pointerStartRef.current = null;
+          draggedRef.current = false;
+        }}
+        onPointerCancel={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          pointerStartRef.current = null;
+          draggedRef.current = false;
+          onCancelPlacement();
+        }}
+        title={
+          deployable
+            ? `${spec.name} 배치 · 우클릭 상세`
+            : `${spec.name} 패시브 적용 · 우클릭 상세`
         }
-      }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onInspectItem(item);
-      }}
-      onPointerDown={(event) => {
-        if (event.button !== 0 || disabled || !preferredRole) {
-          return;
-        }
-        event.currentTarget.setPointerCapture(event.pointerId);
-        pointerStartRef.current = {
-          x: event.clientX,
-          y: event.clientY,
-        };
-        draggedRef.current = false;
-        onSelectNode(preferredRole, item.id);
-      }}
-      onPointerMove={(event) => {
-        const start = pointerStartRef.current;
-        if (!start) {
-          return;
-        }
-        draggedRef.current =
-          draggedRef.current ||
-          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7;
-      }}
-      onPointerUp={(event) => {
-        if (!pointerStartRef.current) {
-          return;
-        }
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        if (draggedRef.current && preferredRole) {
-          suppressClickRef.current = true;
-          onDropNode(
-            preferredRole,
-            event.clientX,
-            event.clientY,
-            item.id,
-          );
-        }
-        pointerStartRef.current = null;
-        draggedRef.current = false;
-      }}
-      onPointerCancel={(event) => {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        pointerStartRef.current = null;
-        draggedRef.current = false;
-        onCancelPlacement();
-      }}
-      title={
-        deployable
-          ? `${spec.name} 배치 · 우클릭 상세`
-          : `${spec.name} 패시브 적용 · 우클릭 상세`
-      }
-    >
-      <span className="inventory-card-state">
-        <i />
-        {deployedRole ? "ACTIVE" : deployable ? "READY" : "PASSIVE"}
-      </span>
-      <span className="inventory-card-icon">
-        <ResourceIcon type={item.type} />
-      </span>
-      <span className="inventory-card-copy">
-        <small>{spec.category.toUpperCase()}</small>
-        <strong>{spec.name}</strong>
-        <em>{roleLabel}</em>
-        <b>
-          {"★".repeat(item.starLevel)}
-          {item.augment ? ` · ${item.augment}` : ""}
-        </b>
-      </span>
-    </button>
+      >
+        <span className="inventory-card-state">
+          <i />
+          {deployedRole ? "ACTIVE" : deployable ? "READY" : "PASSIVE"}
+        </span>
+        <span className="inventory-card-icon">
+          <ResourceIcon type={item.type} />
+        </span>
+        <span className="inventory-card-copy">
+          <small>{spec.category.toUpperCase()}</small>
+          <strong>{spec.name}</strong>
+          <em>{roleLabel}</em>
+          <b>
+            {"★".repeat(item.starLevel)}
+            {item.augment ? ` · ${item.augment}` : ""}
+          </b>
+        </span>
+      </button>
+      
+      <button
+        type="button"
+        className="inventory-sell-button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSellItem(item.id);
+        }}
+      >
+        판매 +${sellValue}
+      </button>
+    </div>
   );
 }
 
@@ -201,13 +226,14 @@ export function InventoryDock({
   onDropNode,
   onCancelPlacement,
   onInspectItem,
+  onSellItem,
 }: InventoryDockProps): React.JSX.Element {
-  const ownedCount = inventory.filter(Boolean).length;
+  const ownedCount = inventory.filter((item) => item !== null && getDeployedRole(architecture, item.id) === null).length;
   const deployedCount = Object.values(architecture.boardSlots).filter(Boolean)
     .length;
   const boardTier = getBoardTier(architecture.boardLevel);
   const linkTier = getLinkTier(architecture.linkLevel);
-  const usedLinkCells = getTotalConnectionCells(architecture);
+  const usedLinkCells = architecture.connections.length;
 
   return (
     <section className="inventory-dock" aria-label="보유 자원">
@@ -225,32 +251,34 @@ export function InventoryDock({
         </article>
         <article>
           <span>LINK BUDGET</span>
-          <strong>LV. {linkTier.level} · {usedLinkCells} / {linkTier.totalCells}</strong>
-          <small>링크당 최대 {linkTier.maxEdgeCells} 구간</small>
+          <strong>LV. {linkTier.level} · {usedLinkCells} / {linkTier.totalCells}개</strong>
+          <small>연결 가능한 최대 링크 개수</small>
         </article>
       </div>
 
       <div className="inventory-slots">
-        {inventory.map((item, index) =>
-          item ? (
+        {inventory.map((item, index) => {
+          const isDeployed = item ? getDeployedRole(architecture, item.id) !== null : false;
+          return item && !isDeployed ? (
             <InventoryCard
               key={item.id}
               item={item}
-              deployedRole={getDeployedRole(architecture, item.id)}
+              deployedRole={null}
               preferredRole={getPreferredRole(architecture, item)}
               disabled={disabled}
               onSelectNode={onSelectNode}
               onDropNode={onDropNode}
               onCancelPlacement={onCancelPlacement}
               onInspectItem={onInspectItem}
+              onSellItem={onSellItem}
             />
           ) : (
             <div className="inventory-empty-slot" key={`empty-${index}`}>
               <span>＋</span>
               <small>장비 슬롯</small>
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
     </section>
   );

@@ -9,12 +9,19 @@ type ToneStep = {
 let audioContext: AudioContext | null = null;
 
 function getContext(): AudioContext | null {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || typeof AudioContext === "undefined") {
     return null;
   }
 
-  audioContext ??= new AudioContext();
-  return audioContext;
+  try {
+    audioContext ??= new AudioContext();
+    if (!audioContext.createOscillator || !audioContext.createGain) {
+      return null;
+    }
+    return audioContext;
+  } catch {
+    return null;
+  }
 }
 
 function playTone(step: ToneStep): void {
@@ -95,5 +102,21 @@ export function playWaveCleared(): void {
       type: "triangle",
       gain: 0.04,
     });
+  });
+}
+
+export function playRequestSuccess(): void {
+  playTone({
+    frequency: 880,
+    duration: 0.04,
+    type: "sine",
+    gain: 0.015,
+  });
+  playTone({
+    frequency: 1320,
+    duration: 0.06,
+    delay: 0.024,
+    type: "sine",
+    gain: 0.012,
   });
 }

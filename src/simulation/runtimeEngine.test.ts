@@ -39,12 +39,13 @@ const directArchitecture: ArchitectureConfig = {
 
 describe("runtimeEngine", () => {
   it("progresses requests through runtime phases to completion", () => {
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
     const state = createRuntimeSimulationState(
       directArchitecture,
-      STAGE_ONE_WAVES[0],
+      testWave,
     );
 
-    for (let tick = 0; tick < 160; tick += 1) {
+    for (let tick = 0; tick < 250; tick += 1) {
       stepRuntimeSimulation(state, 100);
     }
 
@@ -53,9 +54,10 @@ describe("runtimeEngine", () => {
   });
 
   it("drops in-flight packets when hot-plugging breaks an active route", () => {
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
     const state = createRuntimeSimulationState(
       directArchitecture,
-      STAGE_ONE_WAVES[0],
+      testWave,
     );
 
     stepRuntimeSimulation(state, 100);
@@ -96,9 +98,10 @@ describe("runtimeEngine", () => {
         database: null,
       },
     };
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
     const state = createRuntimeSimulationState(
       architecture,
-      STAGE_ONE_WAVES[0],
+      testWave,
     );
 
     stepRuntimeSimulation(state, 100);
@@ -109,9 +112,10 @@ describe("runtimeEngine", () => {
   });
 
   it("fills each packet timeout ring from its own deadline", () => {
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
     const state = createRuntimeSimulationState(
       directArchitecture,
-      STAGE_ONE_WAVES[0],
+      testWave,
     );
     stepRuntimeSimulation(state, 100);
     const packet = state.packets[0];
@@ -119,7 +123,7 @@ describe("runtimeEngine", () => {
     expect(
       getRuntimePacketTimeoutProgress(
         packet,
-        packet.spawnAtMs + STAGE_ONE_WAVES[0].deadlineMs / 2,
+        packet.spawnAtMs + testWave.deadlineMs / 2,
       ),
     ).toBeCloseTo(0.5);
     expect(

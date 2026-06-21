@@ -1694,55 +1694,7 @@ summary:focus-visible {
     grid-template-rows: 48px minmax(230px, 1fr) auto;
   }
 
-  .menu-guide-tabs {
-    overflow-x: auto;
-  }
 
-  .menu-guide-tabs button {
-    flex: 0 0 auto;
-  }
-}
-
-.soft-primary {
-  min-width: 185px;
-  padding: 15px 24px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--mint);
-  box-shadow:
-    0 7px 0 #52b89d,
-    0 13px 26px rgba(69, 174, 145, 0.2);
-  color: #285e51;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 900;
-  transition:
-    transform 130ms ease,
-    box-shadow 130ms ease;
-}
-
-.soft-primary:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 9px 0 #52b89d,
-    0 16px 30px rgba(69, 174, 145, 0.22);
-}
-
-.soft-primary:active {
-  transform: translateY(5px);
-  box-shadow: 0 2px 0 #52b89d;
-}
-
-.game-shell,
-.play-board {
-  position: absolute;
-  inset: 0;
-}
-
-.game-shell {
-  overflow: hidden;
-  background: var(--cream);
-}
 
 .world-frame {
   position: absolute;
@@ -2661,7 +2613,21 @@ summary:focus-visible {
   backdrop-filter: blur(7px);
 }
 
-.help-card,
+.help-card {
+  position: relative;
+  width: min(560px, 92vw);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 25px;
+  border: 8px solid white;
+  border-radius: 34px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgba(79, 72, 63, 0.22);
+  animation: pop-in 220ms ease-out;
+}
+
 .result-card {
   position: relative;
   width: min(560px, 92vw);
@@ -2674,6 +2640,20 @@ summary:focus-visible {
   box-shadow: 0 24px 70px rgba(79, 72, 63, 0.22);
   text-align: center;
   animation: pop-in 220ms ease-out;
+}
+
+.help-card-body {
+  overflow-y: auto;
+  flex: 1;
+  text-align: center;
+  padding-right: 4px;
+  margin-bottom: 16px;
+}
+
+.help-card-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
 }
 
 .close-button {

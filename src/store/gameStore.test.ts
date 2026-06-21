@@ -99,7 +99,7 @@ describe("campaign store", () => {
     useGameStore.getState().toggleConnection("serverA", "exit");
 
     const state = useGameStore.getState();
-    expect(state.inventory.filter(Boolean)).toHaveLength(2);
+    expect(state.inventory.filter(Boolean)).toHaveLength(0);
     expect(state.architecture.connections).toHaveLength(3);
     expect(state.architecture.boardSlots.serverA).toBe(server!.id);
     expect(state.architecture.boardSlots.database).toBe(database!.id);
@@ -287,27 +287,28 @@ describe("campaign store", () => {
     expect(useGameStore.getState().playerLevel).toBe(levelBeforeContinue);
   });
 
-  it("grants two credits when a runtime request completes", () => {
+  it("grants one credit when a runtime request completes", () => {
     useGameStore.getState().resetCampaign();
     const startingCoins = useGameStore.getState().coins;
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
     useGameStore.setState({
       phase: "running",
       architecture: runtimeArchitecture,
       runtimeState: createRuntimeSimulationState(
         runtimeArchitecture,
-        STAGE_ONE_WAVES[0],
+        testWave,
       ),
     });
 
     for (
       let tick = 0;
-      tick < 50 && useGameStore.getState().coins === startingCoins;
+      tick < 150 && useGameStore.getState().coins === startingCoins;
       tick += 1
     ) {
       useGameStore.getState().stepSimulation(100);
     }
 
-    expect(useGameStore.getState().coins).toBe(startingCoins + 2);
+    expect(useGameStore.getState().coins).toBe(startingCoins + 1);
     expect(useGameStore.getState().serviceHp).toBe(100);
   });
 
