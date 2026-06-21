@@ -86,10 +86,10 @@ export function NodeDetails({
       <p>{copy.role}</p>
       <div className="node-details-grid">
         <span>
-          <small>GRID</small>
+          <small>POSITION</small>
           <strong>
             {position
-              ? `${position.column + 1} × ${position.row + 1}`
+              ? `${Math.round(position.column)}, ${Math.round(position.row)}`
               : "INVENTORY"}
           </strong>
         </span>
@@ -125,7 +125,7 @@ export function NodeDetails({
       <small className="node-details-hint">
         {nodeId === "entry" || nodeId === "exit"
           ? "고정 I/O · 우클릭/Shift+드래그로 링크 연결"
-          : "좌클릭 드래그로 이동 · 우클릭/Shift+드래그로 링크 연결"}
+          : "드래그로 이동 · 우클릭/Shift+드래그로 링크 연결"}
       </small>
     </aside>
   );

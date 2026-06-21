@@ -125,6 +125,21 @@ export const XP_REQUIREMENTS: Readonly<Record<number, number>> = {
   10: 0,
 };
 
+export function getLevelUpCost(level: number): number {
+  const costs: Record<number, number> = {
+    1: 4,
+    2: 6,
+    3: 10,
+    4: 16,
+    5: 24,
+    6: 34,
+    7: 46,
+    8: 60,
+    9: 76,
+  };
+  return costs[level] ?? 0;
+}
+
 const DEPLOYABLE_ROLES = [
   "loadBalancer",
   "serverA",
@@ -156,50 +171,11 @@ const createInitialArchitecture = (): ArchitectureConfig => ({
 });
 
 function createStarterInventory(): (NodeInstance | null)[] {
-  return [
-    { id: "starter-lb", type: "apiGateway", starLevel: 1 },
-    { id: "starter-server-a", type: "ec2", starLevel: 1 },
-    { id: "starter-server-b", type: "apache", starLevel: 1 },
-    { id: "starter-db", type: "rdsPrimary", starLevel: 1, augment: "dbQuery" },
-    null,
-    null,
-    null,
-    null,
-  ];
+  return Array<NodeInstance | null>(INVENTORY_CAPACITY).fill(null);
 }
 
 function createStarterArchitecture(): ArchitectureConfig {
-  return {
-    serverCount: 2,
-    hasLoadBalancer: true,
-    hasDatabase: true,
-    databaseIndexed: true,
-    linkLevel: 2,
-    boardLevel: 2,
-    nodePositions: {
-      entry: { ...FIXED_ENTRY_POSITION },
-      exit: { ...FIXED_EXIT_POSITION },
-      loadBalancer: { column: 3, row: 0 },
-      serverA: { column: 2, row: 2 },
-      serverB: { column: 4, row: 2 },
-      database: { column: 3, row: 4 },
-    },
-    connections: [
-      { from: "entry", to: "loadBalancer" },
-      { from: "loadBalancer", to: "exit" },
-      { from: "loadBalancer", to: "serverA" },
-      { from: "loadBalancer", to: "serverB" },
-      { from: "serverA", to: "database" },
-      { from: "serverB", to: "database" },
-    ],
-    boardSlots: {
-      loadBalancer: "starter-lb",
-      serverA: "starter-server-a",
-      serverB: "starter-server-b",
-      database: "starter-db",
-    },
-    performance: { ...DEFAULT_ARCHITECTURE_PERFORMANCE },
-  };
+  return createInitialArchitecture();
 }
 
 function createStarterState(): Pick<
@@ -218,11 +194,11 @@ function createStarterState(): Pick<
     inventory,
   );
   return {
-    coins: 145,
-    serviceHp: 61,
-    playerLevel: 2,
+    coins: 24,
+    serviceHp: 100,
+    playerLevel: 1,
     playerXp: 0,
-    shopItems: ["ec2", "rdsPrimary", "apiGateway", "apache", "redis"],
+    shopItems: ["ec2", "rdsPrimary", "apiGateway", "apache", "sqs"],
     inventory,
     architecture,
   };
@@ -246,10 +222,12 @@ function isPositionOccupied(
         return false;
       }
       const candidate = architecture.nodePositions[nodeId];
-      return (
-        candidate?.column === position.column &&
-        candidate.row === position.row
-      );
+      return candidate
+        ? Math.hypot(
+            candidate.column - position.column,
+            candidate.row - position.row,
+          ) < 120
+        : false;
     },
   );
 }
@@ -616,11 +594,6 @@ export const useGameStore = create<GameState>((set) => ({
 
   continueAfterResult: () =>
     set((state) => {
-      const progress = advanceLevel(
-        state.playerLevel,
-        state.playerXp,
-        2,
-      );
       return {
         phase: "prepare",
         maintenanceMode: "regular",
@@ -628,14 +601,7 @@ export const useGameStore = create<GameState>((set) => ({
           state.waveIndex + 1,
           STAGE_ONE_WAVES.length - 1,
         ),
-        shopItems: rollShopItems(progress.level),
-        playerXp: progress.xp,
-        playerLevel: progress.level,
-        pendingInfrastructureUpgrades: addInfrastructureUpgradeRewards(
-          state.architecture,
-          state.pendingInfrastructureUpgrades,
-          progress.levelsGained,
-        ),
+        shopItems: rollShopItems(state.playerLevel),
       };
     }),
 
@@ -672,9 +638,10 @@ export const useGameStore = create<GameState>((set) => ({
 
   buyXp: () =>
     set((state) => {
+      const levelUpCost = getLevelUpCost(state.playerLevel);
       if (
         state.phase !== "prepare" ||
-        state.coins < 4 ||
+        state.coins < levelUpCost ||
         state.playerLevel >= 10
       ) {
         return state;
@@ -685,7 +652,7 @@ export const useGameStore = create<GameState>((set) => ({
         4,
       );
       return {
-        coins: state.coins - 4,
+        coins: state.coins - levelUpCost,
         playerXp: progress.xp,
         playerLevel: progress.level,
         pendingInfrastructureUpgrades: addInfrastructureUpgradeRewards(

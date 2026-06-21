@@ -8,6 +8,7 @@ import type {
 } from "../simulation/trafficSimulation";
 import {
   DEFAULT_NODE_POSITIONS,
+  getBoardBounds,
   getBoardTier,
   getConnectionFlow,
   getConnectionLength,
@@ -17,6 +18,8 @@ import {
   hasDirectConnection,
   isArchitectureNodePlaced,
   isGridPositionAvailable,
+  LINK_DISTANCE_UNIT,
+  NODE_WORLD_RADIUS,
   validateArchitectureConnections,
   validateNewConnection,
 } from "../simulation/trafficSimulation";
@@ -64,8 +67,9 @@ interface BoardPanGesture {
 const WIDTH = 1200;
 const HEIGHT = 720;
 const PLAYBACK_SCALE = 1;
+const TEXT_RESOLUTION = 3;
 const BOARD_ZOOM = {
-  min: 0.6,
+  min: 0.8,
   max: 2,
   step: 0.1,
 };
@@ -342,21 +346,17 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private fitBoardView(showStatus = true): void {
     const camera = this.cameras.main;
-    const boardTier = getBoardTier(this.architecture.boardLevel);
-    const boardWidth = boardTier.columns * GRID.cellWidth;
-    const boardHeight = boardTier.rows * GRID.cellHeight;
+    const board = getBoardBounds(this.architecture.boardLevel);
     const zoom = Phaser.Math.Clamp(
       Math.min(
-        Math.max(1, camera.width - 80) / Math.max(1, boardWidth),
-        Math.max(1, camera.height - 82) / Math.max(1, boardHeight),
+        Math.max(1, camera.width - 160) / Math.max(1, board.width),
+        Math.max(1, camera.height - 160) / Math.max(1, board.height),
       ),
-      0.74,
-      1.16,
+      0.82,
+      1.18,
     );
-    const boardCenterX =
-      GRID.left + boardWidth / 2;
-    const boardCenterY =
-      GRID.top + boardHeight / 2;
+    const boardCenterX = board.left + board.width / 2;
+    const boardCenterY = board.top + board.height / 2;
 
     camera.setZoom(Number(zoom.toFixed(2)));
     this.updateCameraBounds();
@@ -366,7 +366,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.input.setDefaultCursor("default");
     this.syncCameraMetadata();
     if (showStatus) {
-      this.statusText.setText("활성 보드 영역에 화면을 맞췄습니다");
+      this.statusText.setText("");
     }
   }
 
@@ -388,15 +388,13 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private updateCameraBounds(): void {
     const camera = this.cameras.main;
-    const boardTier = getBoardTier(this.architecture.boardLevel);
-    const boardWidth = boardTier.columns * GRID.cellWidth;
-    const boardHeight = boardTier.rows * GRID.cellHeight;
-    const boardCenterX = GRID.left + boardWidth / 2;
-    const boardCenterY = GRID.top + boardHeight / 2;
+    const board = getBoardBounds(this.architecture.boardLevel);
+    const boardCenterX = board.left + board.width / 2;
+    const boardCenterY = board.top + board.height / 2;
     const viewportWidth = camera.width / camera.zoom;
     const viewportHeight = camera.height / camera.zoom;
-    const width = Math.max(boardWidth + 56, viewportWidth + 4);
-    const height = Math.max(boardHeight + 68, viewportHeight + 4);
+    const width = Math.max(board.width + 760, viewportWidth + 360);
+    const height = Math.max(board.height + 560, viewportHeight + 260);
     const x = boardCenterX - width / 2;
     const y = boardCenterY - height / 2;
 
@@ -456,115 +454,50 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private drawPastelWorld(): void {
-    const boardTier = getBoardTier(this.architecture.boardLevel);
-    const width = boardTier.columns * GRID.cellWidth;
-    const height = boardTier.rows * GRID.cellHeight;
+    const board = getBoardBounds(this.architecture.boardLevel);
     this.boardGraphics.clear();
     this.boardGraphics.fillStyle(0xf7fbff, 1);
     this.boardGraphics.fillRect(-WIDTH, -HEIGHT, WIDTH * 3, HEIGHT * 3);
     this.boardGraphics.fillGradientStyle(0xffffff, 0xffffff, 0xeef5ff, 0xeef5ff, 1);
-    this.boardGraphics.fillRect(GRID.left - 56, GRID.top - 78, width + 112, height + 156);
-    this.boardGraphics.lineStyle(1, 0xd7e2ef, 0.68);
-    for (let x = -WIDTH; x < WIDTH * 2; x += 36) {
-      this.boardGraphics.lineBetween(x, -HEIGHT, x, HEIGHT * 2);
-    }
-    for (let y = -HEIGHT; y < HEIGHT * 2; y += 36) {
-      this.boardGraphics.lineBetween(-WIDTH, y, WIDTH * 2, y);
-    }
+    this.boardGraphics.fillRect(
+      board.left - 80,
+      board.top - 78,
+      board.width + 160,
+      board.height + 156,
+    );
+    this.boardGraphics.fillStyle(0xdde9f9, 0.16);
+    this.boardGraphics.fillCircle(board.left + 140, board.top + 100, 140);
+    this.boardGraphics.fillStyle(0xe7efff, 0.28);
+    this.boardGraphics.fillCircle(board.left + board.width - 120, board.top + 120, 110);
+    this.boardGraphics.fillStyle(0xd8f0eb, 0.22);
+    this.boardGraphics.fillEllipse(
+      board.left + board.width / 2,
+      board.top + board.height - 36,
+      board.width * 0.72,
+      140,
+    );
     this.boardGraphics.fillStyle(0xffffff, 0.98);
     this.boardGraphics.fillRoundedRect(
-      GRID.left - 20,
-      GRID.top - 26,
-      width + 40,
-      height + 52,
+      board.left - 20,
+      board.top - 26,
+      board.width + 40,
+      board.height + 52,
       24,
     );
     this.boardGraphics.lineStyle(2, 0xd6e2ef, 1);
     this.boardGraphics.strokeRoundedRect(
-      GRID.left - 20,
-      GRID.top - 26,
-      width + 40,
-      height + 52,
+      board.left - 20,
+      board.top - 26,
+      board.width + 40,
+      board.height + 52,
       24,
     );
   }
 
   private createGrid(): void {
-    for (let column = 0; column < GRID.columns; column += 1) {
-      const label = this.add
-        .text(
-          GRID.left + GRID.cellWidth / 2 + column * GRID.cellWidth,
-          GRID.top - 18,
-          String(column + 1).padStart(2, "0"),
-          {
-            color: "#97a9bf",
-            fontFamily: "Pretendard",
-            fontSize: "11px",
-            fontStyle: "700",
-          },
-        )
-        .setOrigin(0.5)
-        .setDepth(2);
-      this.columnLabels.push(label);
-    }
-    for (let row = 0; row < GRID.rows; row += 1) {
-      const label = this.add
-        .text(
-          GRID.left - 20,
-          GRID.top + GRID.cellHeight / 2 + row * GRID.cellHeight,
-          String.fromCharCode(65 + row),
-          {
-            color: "#97a9bf",
-            fontFamily: "Pretendard",
-            fontSize: "12px",
-            fontStyle: "700",
-          },
-        )
-        .setOrigin(0.5)
-        .setDepth(2);
-      this.rowLabels.push(label);
-    }
-    for (let row = 0; row < GRID.rows; row += 1) {
-      for (let column = 0; column < GRID.columns; column += 1) {
-        const position = { column, row };
-        const center = this.gridToWorld(position);
-        const rectangle = this.add
-          .rectangle(
-            center.x,
-            center.y,
-            GRID.cellWidth - 6,
-            GRID.cellHeight - 6,
-            COLORS.paper,
-            0.72,
-          )
-          .setStrokeStyle(1.5, COLORS.grid, 0.9)
-          .setDepth(1)
-          .setInteractive({ useHandCursor: true });
-
-        rectangle.on("pointerover", () => {
-          if (
-            isGridPositionAvailable(this.architecture, position) &&
-            this.activePlacementNode &&
-            !this.isOccupied(position)
-          ) {
-            rectangle.setFillStyle(0xe6f7ef, 1);
-            rectangle.setStrokeStyle(4, COLORS.mint, 1);
-          }
-        });
-        rectangle.on("pointerout", () => this.styleGridCell(position));
-        rectangle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-          if (
-            pointer.button === 0 &&
-            isGridPositionAvailable(this.architecture, position) &&
-            this.activePlacementNode &&
-            !this.isOccupied(position)
-          ) {
-            this.requestPlacement(this.activePlacementNode, position, true, this.activePlacementInstanceId ?? undefined);
-          }
-        });
-        this.gridCells.push({ position, center, rectangle });
-      }
-    }
+    this.columnLabels = [];
+    this.rowLabels = [];
+    this.gridCells = [];
   }
 
   private createNodes(): void {
@@ -677,7 +610,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "9px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
     const label = this.createNodeLabel(title, 0, 31);
     const queueText = this.add
       .text(0, 54, "QUEUE 0", {
@@ -686,7 +620,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "10px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
     const dot = this.createNodeStatusDot(35, 16);
     container.add([pressure, shadow, card, body, label, stateText, queueText, dot]);
     this.makeConnectable(container, id);
@@ -741,7 +676,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "9px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
     const queueText = this.add
       .text(0, 54, "QUEUE 0", {
         color: "#6e839f",
@@ -749,7 +685,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "10px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
     const dot = this.createNodeStatusDot(35, 16);
     container.add([
       pressure,
@@ -784,7 +721,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "12px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
   }
 
   private createNodeSubLabel(
@@ -799,7 +737,8 @@ export class ArchitectureScene extends Phaser.Scene {
         fontSize: "11px",
         fontStyle: "700",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(TEXT_RESOLUTION);
   }
 
   private createNodeStatusDot(
@@ -865,7 +804,7 @@ export class ArchitectureScene extends Phaser.Scene {
         this.statusText.setText(
           mode === "connect"
             ? "연결할 장비 위에서 우클릭을 놓으세요"
-            : "빈 격자 칸으로 장비를 이동하세요",
+            : "보드 안의 빈 위치로 장비를 이동하세요",
         );
       }
     });
@@ -901,14 +840,21 @@ export class ArchitectureScene extends Phaser.Scene {
       const source = this.getNodePosition(this.nodeGesture.nodeId);
       this.previewGraphics.clear();
       if (this.nodeGesture.mode === "connect") {
-        const sourceGrid =
+        const sourcePosition =
           this.architecture.nodePositions[this.nodeGesture.nodeId];
-        const pointerGrid = this.worldToGrid(pointer.worldX, pointer.worldY);
+        const previewPosition = this.worldToGrid(pointer.worldX, pointer.worldY);
         const tier = getLinkTier(this.architecture.linkLevel);
         const previewLength =
-          sourceGrid && pointerGrid
-            ? Math.abs(sourceGrid.column - pointerGrid.column) +
-              Math.abs(sourceGrid.row - pointerGrid.row)
+          sourcePosition && previewPosition
+            ? Math.max(
+                1,
+                Math.ceil(
+                  Math.hypot(
+                    sourcePosition.column - previewPosition.column,
+                    sourcePosition.row - previewPosition.row,
+                  ) / LINK_DISTANCE_UNIT,
+                ),
+              )
             : tier.maxEdgeCells + 1;
         const previewColor =
           previewLength <= tier.maxEdgeCells ? COLORS.blue : COLORS.red;
@@ -953,6 +899,30 @@ export class ArchitectureScene extends Phaser.Scene {
         this.boardPanGesture = null;
         this.input.setDefaultCursor(this.isSpacePressed ? "grab" : "default");
         this.syncCameraMetadata();
+        return;
+      }
+      if (
+        !this.nodeGesture &&
+        this.activePlacementNode &&
+        pointer.button === 0 &&
+        !this.isPointerOverNode(pointer.worldX, pointer.worldY)
+      ) {
+        const position = this.worldToGrid(pointer.worldX, pointer.worldY);
+        if (
+          position &&
+          isGridPositionAvailable(this.architecture, position) &&
+          !this.isOccupied(position)
+        ) {
+          this.requestPlacement(
+            this.activePlacementNode,
+            position,
+            true,
+            this.activePlacementInstanceId ?? undefined,
+          );
+        } else {
+          this.statusText.setText("현재 보드의 빈 위치에 놓아 주세요");
+          this.cameras.main.shake(100, 0.002);
+        }
         return;
       }
       if (!this.nodeGesture) {
@@ -1058,7 +1028,7 @@ export class ArchitectureScene extends Phaser.Scene {
         this.nodes
           .get(source)
           ?.container.setPosition(origin.x, origin.y);
-        this.statusText.setText("빈 격자 칸이나 다른 장비 위에 놓아 주세요");
+        this.statusText.setText("보드 안의 빈 위치에 놓아 주세요");
         this.cameras.main.shake(100, 0.002);
       }
       this.refreshGrid();
@@ -1069,12 +1039,13 @@ export class ArchitectureScene extends Phaser.Scene {
     this.statusPanel = this.add
       .rectangle(0, 0, 420, 34, 0xffffff, 0.96)
       .setStrokeStyle(1, 0xd8e3ef, 1)
-      .setDepth(20);
+      .setDepth(20)
+      .setVisible(false);
     this.statusText = this.add
       .text(
         0,
         0,
-        "우클릭 상세 · 우클릭 드래그 링크 · 좌클릭 드래그 이동",
+        "",
         {
           color: "#617790",
           fontFamily: "Pretendard",
@@ -1083,7 +1054,9 @@ export class ArchitectureScene extends Phaser.Scene {
         },
       )
       .setOrigin(0.5)
-      .setDepth(21);
+      .setDepth(21)
+      .setVisible(false)
+      .setResolution(TEXT_RESOLUTION);
     this.layoutFixedHud();
   }
 
@@ -1091,11 +1064,10 @@ export class ArchitectureScene extends Phaser.Scene {
     if (!this.statusPanel || !this.statusText) {
       return;
     }
-    const boardTier = getBoardTier(this.architecture.boardLevel);
-    const boardWidth = boardTier.columns * GRID.cellWidth;
-    const width = Math.min(460, Math.max(260, boardWidth - 80));
-    const x = GRID.left + boardWidth / 2;
-    const y = GRID.top - 50;
+    const board = getBoardBounds(this.architecture.boardLevel);
+    const width = Math.min(460, Math.max(260, board.width - 120));
+    const x = board.left + board.width / 2;
+    const y = board.top - 50;
     this.statusPanel.setPosition(x, y).setSize(width, 34);
     this.statusText.setPosition(x, y);
   }
@@ -1103,19 +1075,11 @@ export class ArchitectureScene extends Phaser.Scene {
   private applyArchitecture(playBuildEffect: boolean): void {
     this.drawPastelWorld();
     this.layoutFixedHud();
-    const boardTier = getBoardTier(this.architecture.boardLevel);
-    this.columnLabels.forEach((label, index) => {
-      label.setVisible(index < boardTier.columns);
-    });
-    this.rowLabels.forEach((label, index) => {
-      label.setVisible(index < boardTier.rows);
-    });
     for (const [nodeId, node] of this.nodes) {
-      const gridPosition = this.architecture.nodePositions[nodeId];
-      node.container.setVisible(Boolean(gridPosition));
-      if (gridPosition) {
-        const position = this.gridToWorld(gridPosition);
-        node.container.setPosition(position.x, position.y);
+      const position = this.architecture.nodePositions[nodeId];
+      node.container.setVisible(Boolean(position));
+      if (position) {
+        node.container.setPosition(position.column, position.row);
       }
     }
     this.drawConnections();
@@ -1175,9 +1139,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private showLinkBudget(): void {
-    this.statusText.setText(
-      "좌클릭 선택·이동 · 우클릭 상세 · 우클릭 드래그 링크",
-    );
+    this.statusText.setText("");
   }
 
   private drawOrthogonalLine(
@@ -1219,7 +1181,7 @@ export class ArchitectureScene extends Phaser.Scene {
     }
     this.activePlacementNode = nodeId;
     this.activePlacementInstanceId = instanceId ?? null;
-    this.statusText.setText("초록색 격자 칸을 골라 장비를 놓아 주세요");
+    this.statusText.setText("보드 안의 빈 위치에 장비를 드래그해 놓아 주세요");
     this.refreshGrid();
   }
 
@@ -1237,7 +1199,7 @@ export class ArchitectureScene extends Phaser.Scene {
       !isGridPositionAvailable(this.architecture, position) ||
       this.isOccupied(position)
     ) {
-      this.statusText.setText("현재 보드의 비어 있는 격자 칸에 놓아 주세요");
+      this.statusText.setText("현재 보드의 빈 위치에 놓아 주세요");
       this.cameras.main.shake(100, 0.002);
       return;
     }
@@ -1262,45 +1224,11 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private refreshGrid(): void {
-    for (const cell of this.gridCells) {
-      this.styleGridCell(cell.position);
-    }
+    // Free-placement board keeps no visible grid cells.
   }
 
   private styleGridCell(position: GridPosition): void {
-    const cell = this.gridCells.find(
-      (candidate) =>
-        candidate.position.column === position.column &&
-        candidate.position.row === position.row,
-    );
-    if (!cell) {
-      return;
-    }
-    const available = isGridPositionAvailable(this.architecture, position);
-    cell.rectangle.setVisible(available);
-    if (!available) {
-      return;
-    }
-    if (cell.rectangle.input) {
-      cell.rectangle.input.cursor = this.activePlacementNode
-        ? "pointer"
-        : "grab";
-    }
-    const occupied = this.isOccupied(position);
-    const isMoveTarget =
-      this.moveTargetPosition?.column === position.column &&
-      this.moveTargetPosition?.row === position.row;
-    const active =
-      (Boolean(this.activePlacementNode) && !occupied) || isMoveTarget;
-    cell.rectangle.setFillStyle(
-      occupied ? 0xf4f7fb : active ? 0xe9f7f3 : COLORS.paper,
-      occupied ? 0.8 : active ? 1 : 0.86,
-    );
-    cell.rectangle.setStrokeStyle(
-      active ? 2.5 : 1.5,
-      active ? COLORS.mint : COLORS.grid,
-      active ? 1 : 0.9,
-    );
+    void position;
   }
 
   private async playWave(result: WaveSimulationResult): Promise<void> {
@@ -2005,24 +1933,11 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private gridToWorld(position: GridPosition): Phaser.Math.Vector2 {
-    return new Phaser.Math.Vector2(
-      GRID.left + GRID.cellWidth / 2 + position.column * GRID.cellWidth,
-      GRID.top + GRID.cellHeight / 2 + position.row * GRID.cellHeight,
-    );
+    return new Phaser.Math.Vector2(position.column, position.row);
   }
 
   private worldToGrid(x: number, y: number): GridPosition | null {
-    const column = Math.floor((x - GRID.left) / GRID.cellWidth);
-    const row = Math.floor((y - GRID.top) / GRID.cellHeight);
-    if (
-      column < 0 ||
-      column >= GRID.columns ||
-      row < 0 ||
-      row >= GRID.rows
-    ) {
-      return null;
-    }
-    const position = { column, row };
+    const position = { column: x, row: y };
     return isGridPositionAvailable(this.architecture, position)
       ? position
       : null;
@@ -2041,8 +1956,10 @@ export class ArchitectureScene extends Phaser.Scene {
         return false;
       }
       return (
-        candidate.column === position.column &&
-        candidate.row === position.row
+        Math.hypot(
+          candidate.column - position.column,
+          candidate.row - position.row,
+        ) < 120
       );
     });
   }
@@ -2069,7 +1986,7 @@ export class ArchitectureScene extends Phaser.Scene {
         nodeId !== except &&
         this.isNodeActive(nodeId) &&
         Phaser.Math.Distance.Between(x, y, node.container.x, node.container.y) <
-          52
+          NODE_WORLD_RADIUS
       ) {
         return nodeId;
       }
@@ -2082,7 +1999,7 @@ export class ArchitectureScene extends Phaser.Scene {
       if (
         this.isNodeActive(nodeId) &&
         Phaser.Math.Distance.Between(x, y, node.container.x, node.container.y) <
-          52
+          NODE_WORLD_RADIUS
       ) {
         return true;
       }
@@ -2135,6 +2052,7 @@ export class ArchitectureScene extends Phaser.Scene {
     this.previewGraphics.clear();
     this.resetTraffic();
     this.applyArchitecture(false);
+    this.fitBoardView(false);
     this.showLinkBudget();
   }
 

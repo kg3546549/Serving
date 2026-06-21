@@ -5,7 +5,7 @@ import {
   MAINTENANCE_CATALOG,
   SYSTEM_CATALOG,
 } from "../simulation/trafficSimulation";
-import { XP_REQUIREMENTS } from "../store/gameStore";
+import { getLevelUpCost, XP_REQUIREMENTS } from "../store/gameStore";
 import { ResourceIcon } from "./DeviceIcon";
 
 interface ShopDockProps {
@@ -42,6 +42,7 @@ export function ShopDock({
   onClearConnections,
 }: ShopDockProps): React.JSX.Element {
   const requiredXp = XP_REQUIREMENTS[playerLevel] || 0;
+  const levelUpCost = getLevelUpCost(playerLevel);
   const xpPercent =
     playerLevel >= 10 || requiredXp === 0
       ? 100
@@ -80,9 +81,9 @@ export function ShopDock({
           <button
             type="button"
             onClick={onBuyXp}
-            disabled={disabled || coins < 4 || playerLevel >= 10}
+            disabled={disabled || coins < levelUpCost || playerLevel >= 10}
           >
-            레벨업 XP <b>4</b>
+            레벨업 XP <b>{levelUpCost}</b>
           </button>
           <button
             type="button"
@@ -108,9 +109,6 @@ export function ShopDock({
           const spec = maintenance
             ? MAINTENANCE_CATALOG[item]
             : SYSTEM_CATALOG[item];
-          const owned =
-            !maintenance &&
-            inventory.some((inventoryItem) => inventoryItem?.type === item);
           const cost = spec.cost;
           const category = maintenance
             ? "PASSIVE"
@@ -124,9 +122,6 @@ export function ShopDock({
               key={`${item}-${index}`}
               onClick={() => {
                 if (!disabled && coins >= cost) {
-                  if (owned) {
-                    return;
-                  }
                   onBuyShopItem(index);
                 }
               }}
@@ -134,7 +129,7 @@ export function ShopDock({
                 event.preventDefault();
                 onInspectItem(item);
               }}
-              aria-disabled={disabled || coins < cost || owned}
+              aria-disabled={disabled || coins < cost}
               title="좌클릭 구매 · 우클릭 상세"
             >
               <span className="shop-offer-icon">
@@ -147,15 +142,13 @@ export function ShopDock({
               </span>
               <span className="shop-offer-price">
                 <small>
-                  {owned
-                    ? "OWNED"
-                    : maintenance
-                      ? "OWN"
-                      : tier
-                        ? `TIER ${tier}`
-                        : "BUY"}
+                  {maintenance
+                    ? "OWN"
+                    : tier
+                      ? `TIER ${tier}`
+                      : "BUY"}
                 </small>
-                <strong>{owned ? "OWNED" : cost > 0 ? cost : "OWNED"}</strong>
+                <strong>{cost > 0 ? cost : "OWNED"}</strong>
               </span>
             </button>
           );

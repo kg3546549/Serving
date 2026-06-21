@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import {
+  playUiTap,
   playWaveCleared,
   playWaveFailed,
   playWaveStart,
@@ -60,7 +61,6 @@ export function App(): React.JSX.Element {
   const [prepRemainingMs, setPrepRemainingMs] =
     useState(FIRST_WAVE_PREP_DURATION_MS);
   const autoWaveStartedRef = useRef(false);
-  const autoInspectStarterRef = useRef(false);
 
   const phase = useGameStore((state) => state.phase);
   const waveIndex = useGameStore((state) => state.waveIndex);
@@ -187,10 +187,16 @@ export function App(): React.JSX.Element {
     useEmergencyMaintenance,
   ]);
 
+  const handleSkipPrepare = useCallback(() => {
+    if (phase !== "prepare" || !worldReady) {
+      return;
+    }
+    setPrepRemainingMs(0);
+  }, [phase, worldReady]);
+
   const handleRestart = useCallback(() => {
     setSelectedNode(null);
     autoWaveStartedRef.current = false;
-    autoInspectStarterRef.current = false;
     setPrepRemainingMs(FIRST_WAVE_PREP_DURATION_MS);
     resetCampaign();
     gameEvents.emit(GAME_EVENTS.RESET_WORLD, undefined);
@@ -288,18 +294,6 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (
       phase === "prepare" &&
-      waveIndex === 0 &&
-      architecture.hasDatabase &&
-      !autoInspectStarterRef.current
-    ) {
-      autoInspectStarterRef.current = true;
-      setSelectedNode("database");
-    }
-  }, [architecture.hasDatabase, phase, waveIndex]);
-
-  useEffect(() => {
-    if (
-      phase === "prepare" &&
       worldReady &&
       !isTimerPaused &&
       prepRemainingMs === 0
@@ -313,6 +307,29 @@ export function App(): React.JSX.Element {
     prepRemainingMs,
     worldReady,
   ]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (
+        target.closest(
+          "button, summary, .inventory-card, .inventory-empty-slot, .shop-offer",
+        )
+      ) {
+        playUiTap();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, []);
 
   if (phase === "menu") {
     return <MainMenu onStart={handleStartMission} />;
@@ -380,6 +397,7 @@ export function App(): React.JSX.Element {
             paused={isTimerPaused}
             emergencyMaintenanceCharges={emergencyMaintenanceCharges}
             onEmergencyMaintenance={handleEmergencyMaintenance}
+            onSkipPrepare={handleSkipPrepare}
           />
         )}
 

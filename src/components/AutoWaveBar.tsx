@@ -8,6 +8,7 @@ interface AutoWaveBarProps {
   paused: boolean;
   emergencyMaintenanceCharges: number;
   onEmergencyMaintenance: () => void;
+  onSkipPrepare?: () => void;
 }
 
 export function AutoWaveBar({
@@ -18,6 +19,7 @@ export function AutoWaveBar({
   paused,
   emergencyMaintenanceCharges,
   onEmergencyMaintenance,
+  onSkipPrepare,
 }: AutoWaveBarProps): React.JSX.Element {
   const elapsedPercent =
     phase === "prepare"
@@ -51,6 +53,15 @@ export function AutoWaveBar({
       <div className="auto-wave-track">
         <i style={{ width: `${elapsedPercent}%` }} />
       </div>
+      {phase === "prepare" && onSkipPrepare && (
+        <button
+          type="button"
+          className="emergency-maintenance-button"
+          onClick={onSkipPrepare}
+        >
+          준비 스킵
+        </button>
+      )}
       {phase === "running" && (
         <button
           type="button"

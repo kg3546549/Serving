@@ -4,24 +4,24 @@ import { simulateTrafficWave } from "../simulation/trafficSimulation";
 import { useGameStore } from "./gameStore";
 
 describe("campaign store", () => {
-  it("starts with a staged starter architecture and four deployed devices", () => {
+  it("starts with an empty inventory and only fixed ingress/egress", () => {
     useGameStore.getState().resetCampaign();
     const state = useGameStore.getState();
 
-    expect(state.inventory.filter(Boolean)).toHaveLength(4);
-    expect(state.architecture.serverCount).toBe(2);
-    expect(state.architecture.hasDatabase).toBe(true);
-    expect(state.architecture.hasLoadBalancer).toBe(true);
+    expect(state.inventory.filter(Boolean)).toHaveLength(0);
+    expect(state.architecture.serverCount).toBe(0);
+    expect(state.architecture.hasDatabase).toBe(false);
+    expect(state.architecture.hasLoadBalancer).toBe(false);
     expect(state.architecture.nodePositions.entry).toEqual({
-      column: 1,
-      row: 0,
+      column: 320,
+      row: 280,
     });
     expect(state.architecture.nodePositions.exit).toEqual({
-      column: 5,
-      row: 0,
+      column: 880,
+      row: 280,
     });
-    expect(state.architecture.boardLevel).toBe(2);
-    expect(state.architecture.linkLevel).toBe(2);
+    expect(state.architecture.boardLevel).toBe(1);
+    expect(state.architecture.linkLevel).toBe(1);
   });
 
   it("buys, keeps, places, and connects the minimum architecture", () => {
@@ -40,8 +40,8 @@ describe("campaign store", () => {
         boardLevel: 1,
         connections: [],
         nodePositions: {
-          entry: { column: 1, row: 0 },
-          exit: { column: 5, row: 0 },
+          entry: { column: 320, row: 280 },
+          exit: { column: 880, row: 280 },
         },
         boardSlots: {
           loadBalancer: null,
@@ -60,10 +60,10 @@ describe("campaign store", () => {
 
     useGameStore
       .getState()
-      .placeNode("serverA", { column: 3, row: 1 }, server!.id);
+      .placeNode("serverA", { column: 600, row: 310 }, server!.id);
     useGameStore
       .getState()
-      .placeNode("database", { column: 3, row: 3 }, database!.id);
+      .placeNode("database", { column: 600, row: 430 }, database!.id);
     useGameStore.getState().toggleConnection("entry", "serverA");
     useGameStore.getState().toggleConnection("serverA", "database");
     useGameStore.getState().toggleConnection("serverA", "exit");
@@ -81,12 +81,12 @@ describe("campaign store", () => {
     useGameStore.getState().moveNode("exit", { column: 4, row: 2 });
 
     expect(useGameStore.getState().architecture.nodePositions.entry).toEqual({
-      column: 1,
-      row: 0,
+      column: 320,
+      row: 280,
     });
     expect(useGameStore.getState().architecture.nodePositions.exit).toEqual({
-      column: 5,
-      row: 0,
+      column: 880,
+      row: 280,
     });
   });
 
@@ -114,6 +114,26 @@ describe("campaign store", () => {
     useGameStore.setState({ pendingInfrastructureUpgrades: 1 });
     useGameStore.getState().chooseInfrastructureUpgrade("link");
     expect(useGameStore.getState().architecture.linkLevel).toBe(2);
+  });
+
+  it("increases level-up purchase cost by player level", () => {
+    useGameStore.getState().resetCampaign();
+    useGameStore.setState({
+      phase: "prepare",
+      coins: 200,
+      playerLevel: 1,
+      playerXp: 0,
+      pendingInfrastructureUpgrades: 0,
+    });
+
+    useGameStore.getState().buyXp();
+    expect(useGameStore.getState().coins).toBe(196);
+    expect(useGameStore.getState().playerXp).toBe(2);
+    expect(useGameStore.getState().playerLevel).toBe(2);
+
+    useGameStore.getState().buyXp();
+    expect(useGameStore.getState().coins).toBe(190);
+    expect(useGameStore.getState().playerLevel).toBe(3);
   });
 
   it("does not queue an expansion choice when board and link are maxed", () => {
@@ -151,8 +171,8 @@ describe("campaign store", () => {
         databaseIndexed: false,
         connections: [],
         nodePositions: {
-          entry: { column: 1, row: 0 },
-          exit: { column: 5, row: 0 },
+          entry: { column: 320, row: 280 },
+          exit: { column: 880, row: 280 },
         },
         boardSlots: {
           loadBalancer: null,
@@ -210,8 +230,8 @@ describe("campaign store", () => {
         databaseIndexed: false,
         connections: [],
         nodePositions: {
-          entry: { column: 1, row: 0 },
-          exit: { column: 5, row: 0 },
+          entry: { column: 320, row: 280 },
+          exit: { column: 880, row: 280 },
         },
         boardSlots: {
           loadBalancer: null,
@@ -225,11 +245,15 @@ describe("campaign store", () => {
     useGameStore.setState({ phase: "running" });
 
     useGameStore.getState().completeWave(result);
-    expect(useGameStore.getState().serviceHp).toBe(52);
+    expect(useGameStore.getState().serviceHp).toBe(91);
     expect(useGameStore.getState().phase).toBe("result");
 
+    const xpBeforeContinue = useGameStore.getState().playerXp;
+    const levelBeforeContinue = useGameStore.getState().playerLevel;
     useGameStore.getState().continueAfterResult();
     expect(useGameStore.getState().waveIndex).toBe(1);
     expect(useGameStore.getState().phase).toBe("prepare");
+    expect(useGameStore.getState().playerXp).toBe(xpBeforeContinue);
+    expect(useGameStore.getState().playerLevel).toBe(levelBeforeContinue);
   });
 });

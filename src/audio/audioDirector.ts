@@ -59,6 +59,22 @@ export function playWaveStart(): void {
   });
 }
 
+export function playUiTap(): void {
+  playTone({
+    frequency: 540,
+    duration: 0.045,
+    type: "triangle",
+    gain: 0.018,
+  });
+  playTone({
+    frequency: 720,
+    duration: 0.03,
+    delay: 0.012,
+    type: "sine",
+    gain: 0.012,
+  });
+}
+
 export function playWaveFailed(): void {
   playTone({ frequency: 90, duration: 0.35, type: "sawtooth", gain: 0.065 });
   playTone({

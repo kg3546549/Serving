@@ -60,7 +60,7 @@ export function InfrastructureUpgradePopup({
           >
             <small>BOARD UPGRADE</small>
             <strong>보드 사이즈 추가</strong>
-            <span>새 장비를 배치할 수 있는 격자 영역을 확장합니다.</span>
+            <span>새 장비를 자유롭게 둘 수 있는 작업 영역을 확장합니다.</span>
             <b>
               {boardMax
                 ? "MAX LEVEL"

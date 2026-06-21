@@ -16,8 +16,8 @@ const directArchitecture: ArchitectureConfig = {
   nodePositions: {
     entry: DEFAULT_NODE_POSITIONS.entry,
     exit: DEFAULT_NODE_POSITIONS.exit,
-    serverA: { column: 3, row: 1 },
-    database: { column: 3, row: 3 },
+    serverA: { column: 430, row: 300 },
+    database: { column: 620, row: 470 },
   },
   connections: [
     { from: "entry", to: "serverA" },
@@ -121,12 +121,54 @@ describe("simulateTrafficWave", () => {
     expect(withIndex.database.slowReads).toBeGreaterThan(0);
   });
 
+  it("times out requests when the free-placement route becomes too long", () => {
+    const longRoute = simulateTrafficWave({
+      ...STAGE_ONE_WAVES[0],
+      deadlineMs: 2_400,
+    }, {
+      ...scaledArchitecture,
+      nodePositions: {
+        ...scaledArchitecture.nodePositions,
+        loadBalancer: { column: 600, row: 130 },
+        serverA: { column: 220, row: 500 },
+        serverB: { column: 980, row: 500 },
+        database: { column: 600, row: 600 },
+      },
+    });
+
+    expect(longRoute.metrics.timedOut).toBeGreaterThan(0);
+    expect(longRoute.metrics.failed).toBeGreaterThan(0);
+  });
+
   it("drops all traffic when the complete request route is missing", () => {
     const result = simulateTrafficWave(STAGE_ONE_WAVES[0], {
       ...directArchitecture,
       connections: [],
     });
 
+    expect(result.metrics.completed).toBe(0);
+    expect(result.metrics.dropped).toBe(6);
+    expect(result.bottleneckNode).toBe("route");
+  });
+
+  it("lets requests reach the app server before failing when the DB link is missing", () => {
+    const result = simulateTrafficWave(STAGE_ONE_WAVES[0], {
+      ...directArchitecture,
+      connections: [
+        { from: "entry", to: "serverA" },
+        { from: "serverA", to: "exit" },
+      ],
+    });
+    const requestEvents = result.events
+      .filter((event) => event.requestId === 1)
+      .map((event) => event.type);
+
+    expect(requestEvents).toEqual([
+      "spawned",
+      "routed",
+      "server_started",
+      "dropped",
+    ]);
     expect(result.metrics.completed).toBe(0);
     expect(result.metrics.dropped).toBe(6);
     expect(result.bottleneckNode).toBe("route");

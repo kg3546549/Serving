@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type {
   ArchitectureConfig,
   ArchitectureNodeId,
@@ -68,40 +68,6 @@ function InventoryCard({
       ? "드래그하여 배치"
       : "패시브 적용";
 
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent): void => {
-      const start = pointerStartRef.current;
-      if (!start) {
-        return;
-      }
-      draggedRef.current =
-        draggedRef.current ||
-        Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7;
-    };
-    const handlePointerUp = (event: PointerEvent): void => {
-      if (!pointerStartRef.current || !preferredRole) {
-        return;
-      }
-      if (draggedRef.current) {
-        suppressClickRef.current = true;
-        onDropNode(
-          preferredRole,
-          event.clientX,
-          event.clientY,
-          item.id,
-        );
-      }
-      pointerStartRef.current = null;
-      draggedRef.current = false;
-    };
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [item.id, onDropNode, preferredRole]);
-
   return (
     <button
       type="button"
@@ -126,6 +92,7 @@ function InventoryCard({
         if (event.button !== 0 || disabled || !preferredRole) {
           return;
         }
+        event.currentTarget.setPointerCapture(event.pointerId);
         pointerStartRef.current = {
           x: event.clientX,
           y: event.clientY,
@@ -133,7 +100,42 @@ function InventoryCard({
         draggedRef.current = false;
         onSelectNode(preferredRole, item.id);
       }}
-      onPointerCancel={onCancelPlacement}
+      onPointerMove={(event) => {
+        const start = pointerStartRef.current;
+        if (!start) {
+          return;
+        }
+        draggedRef.current =
+          draggedRef.current ||
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7;
+      }}
+      onPointerUp={(event) => {
+        if (!pointerStartRef.current) {
+          return;
+        }
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (draggedRef.current && preferredRole) {
+          suppressClickRef.current = true;
+          onDropNode(
+            preferredRole,
+            event.clientX,
+            event.clientY,
+            item.id,
+          );
+        }
+        pointerStartRef.current = null;
+        draggedRef.current = false;
+      }}
+      onPointerCancel={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        pointerStartRef.current = null;
+        draggedRef.current = false;
+        onCancelPlacement();
+      }}
       title={
         deployable
           ? `${spec.name} 배치 · 우클릭 상세`
@@ -217,14 +219,14 @@ export function InventoryDock({
 
       <div className="inventory-capacity">
         <article>
-          <span>BOARD SIZE</span>
+          <span>BOARD AREA</span>
           <strong>LV. {boardTier.level} · {boardTier.columns} × {boardTier.rows}</strong>
-          <small>레벨업 선택으로 확장</small>
+          <small>자유 배치 가능한 보드 영역</small>
         </article>
         <article>
-          <span>LINK CAPACITY</span>
+          <span>LINK BUDGET</span>
           <strong>LV. {linkTier.level} · {usedLinkCells} / {linkTier.totalCells}</strong>
-          <small>링크당 최대 {linkTier.maxEdgeCells}칸</small>
+          <small>링크당 최대 {linkTier.maxEdgeCells} 구간</small>
         </article>
       </div>
 

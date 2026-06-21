@@ -91,10 +91,11 @@ export function GameHost({
       ({ zoom }) => setCameraZoom(zoom),
     );
 
-    const game = new Phaser.Game({
+    const game = new Phaser.Game(({
       type: Phaser.WEBGL,
       width: 1200,
       height: 720,
+      resolution: Math.min(window.devicePixelRatio || 1, 2),
       parent: hostRef.current,
       backgroundColor: "#f3f8ff",
       disableContextMenu: true,
@@ -102,14 +103,16 @@ export function GameHost({
       antialias: true,
       transparent: false,
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 1200,
+        height: 720,
       },
       render: {
         pixelArt: false,
         roundPixels: false,
       },
-    });
+    }) as Phaser.Types.Core.GameConfig & { resolution: number });
 
     return () => {
       unsubscribeReady();

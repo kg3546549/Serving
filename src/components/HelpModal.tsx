@@ -50,27 +50,27 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
         <details className="learn-more">
           <summary>어떤 경로를 그려야 하나요?</summary>
           <p>
-            Wave 1은 입구 → App Server A → Primary DB → App Server A
-            → 출구 경로를 만듭니다. 입구 링크는 파랑, 출구 링크는 보라,
-            서버 내부의 양방향 링크는 두 색으로 표시됩니다.
+            이 게임은 Mini Metro처럼 요청 흐름을 선으로 설계합니다.
+            기본 구조는 입구 → App Server → Primary DB → 응답 출구이며,
+            DB 링크가 없으면 서버까지는 가지만 저장 단계에서 실패합니다.
           </p>
         </details>
 
         <details className="learn-more">
           <summary>링크 길이와 LINK LEVEL</summary>
           <p>
-            링크 길이는 두 장비 사이의 가로·세로 칸 수로 계산합니다.
-            LINK LEVEL은 링크 하나의 최대 길이와 전체 사용 가능한 칸 수를
-            늘립니다. 보드 장비를 우클릭 드래그해 링크를 연결합니다.
+            링크 길이는 장비 사이 실제 거리로 계산합니다. LINK LEVEL은
+            링크 하나의 최대 길이와 전체 사용 가능한 선 용량을 늘립니다.
+            보드 장비를 우클릭 드래그해 링크를 연결합니다.
           </p>
         </details>
 
         <details className="learn-more">
           <summary>BOARD LEVEL은 무엇인가요?</summary>
           <p>
-            처음에는 7×4 보드만 사용할 수 있습니다. 플레이어 레벨이 오르면
-            BOARD SIZE 또는 LINK CAPACITY 중 하나를 선택해 확장하며, 보드는
-            10×5, 최종 13×6 영역까지 열립니다.
+            처음에는 작은 작업 영역만 열려 있습니다. 플레이어 레벨이 오르면
+            BOARD SIZE 또는 LINK CAPACITY 중 하나를 선택해 작업 범위를
+            확장할 수 있습니다.
           </p>
         </details>
 
@@ -96,9 +96,8 @@ export function HelpModal({ onClose }: HelpModalProps): React.JSX.Element {
           <summary>보드를 확대하거나 이동하려면?</summary>
           <p>
             마우스 휠로 커서 위치를 중심으로 확대·축소합니다. 장비가 없는
-            보드를 좌클릭 드래그하거나 휠 버튼으로 드래그하면 화면을
-            이동합니다. 카메라는 활성 보드 주변을 벗어날 수 없으며 R 키를
-            누르면 보드 전체가 보이도록 다시 맞춥니다.
+            빈 공간을 좌클릭 드래그하거나 휠 버튼으로 드래그하면 화면을
+            이동합니다. R 키를 누르면 보드 전체가 보이도록 다시 맞춥니다.
           </p>
         </details>
 

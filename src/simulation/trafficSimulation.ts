@@ -101,6 +101,13 @@ export interface GridPosition {
   row: number;
 }
 
+export interface BoardRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface ArchitectureConnection {
   from: ArchitectureNodeId;
   to: ArchitectureNodeId;
@@ -122,6 +129,8 @@ export interface BoardTier {
   level: BoardLevel;
   columns: number;
   rows: number;
+  width: number;
+  height: number;
   upgradeCost: number | null;
 }
 
@@ -136,16 +145,20 @@ export type ArchitectureNodePositions = Partial<
   Record<ArchitectureNodeId, GridPosition>
 >;
 
-export const FIXED_ENTRY_POSITION: GridPosition = { column: 1, row: 0 };
-export const FIXED_EXIT_POSITION: GridPosition = { column: 5, row: 0 };
+export const BOARD_WORLD_CENTER = { x: 600, y: 380 } as const;
+export const NODE_WORLD_RADIUS = 72;
+export const LINK_DISTANCE_UNIT = 110;
+
+export const FIXED_ENTRY_POSITION: GridPosition = { column: 320, row: 280 };
+export const FIXED_EXIT_POSITION: GridPosition = { column: 880, row: 280 };
 
 export const DEFAULT_NODE_POSITIONS: ArchitectureNodePositions = {
   entry: FIXED_ENTRY_POSITION,
   exit: FIXED_EXIT_POSITION,
-  loadBalancer: { column: 3, row: 1 },
-  serverA: { column: 5, row: 2 },
-  serverB: { column: 5, row: 4 },
-  database: { column: 8, row: 3 },
+  loadBalancer: { column: 600, row: 240 },
+  serverA: { column: 470, row: 380 },
+  serverB: { column: 730, row: 380 },
+  database: { column: 600, row: 520 },
 };
 
 export interface ArchitectureConfig {
@@ -173,9 +186,9 @@ export const LINK_TIERS: readonly LinkTier[] = [
 ] as const;
 
 export const BOARD_TIERS: readonly BoardTier[] = [
-  { level: 1, columns: 7, rows: 4, upgradeCost: 90 },
-  { level: 2, columns: 10, rows: 5, upgradeCost: 140 },
-  { level: 3, columns: 13, rows: 6, upgradeCost: null },
+  { level: 1, columns: 7, rows: 4, width: 760, height: 390, upgradeCost: 90 },
+  { level: 2, columns: 10, rows: 5, width: 980, height: 500, upgradeCost: 140 },
+  { level: 3, columns: 13, rows: 6, width: 1160, height: 610, upgradeCost: null },
 ] as const;
 
 export const NODE_PORT_LIMITS: Readonly<
@@ -201,28 +214,48 @@ export function isGridPositionAvailable(
   architecture: ArchitectureConfig,
   position: GridPosition,
 ): boolean {
-  const tier = getBoardTier(architecture.boardLevel);
+  const rect = getBoardBounds(architecture.boardLevel);
   return (
-    position.column >= 0 &&
-    position.column < tier.columns &&
-    position.row >= 0 &&
-    position.row < tier.rows
+    position.column >= rect.left + NODE_WORLD_RADIUS &&
+    position.column <= rect.left + rect.width - NODE_WORLD_RADIUS &&
+    position.row >= rect.top + NODE_WORLD_RADIUS &&
+    position.row <= rect.top + rect.height - NODE_WORLD_RADIUS
   );
+}
+
+export function getBoardBounds(level: BoardLevel): BoardRect {
+  const tier = getBoardTier(level);
+  return {
+    left: BOARD_WORLD_CENTER.x - tier.width / 2,
+    top: BOARD_WORLD_CENTER.y - tier.height / 2,
+    width: tier.width,
+    height: tier.height,
+  };
+}
+
+export function getNodeDistance(
+  architecture: ArchitectureConfig,
+  left: ArchitectureNodeId,
+  right: ArchitectureNodeId,
+): number {
+  const from = architecture.nodePositions[left];
+  const to = architecture.nodePositions[right];
+  if (!from || !to) {
+    return 0;
+  }
+  return Math.hypot(from.column - to.column, from.row - to.row);
 }
 
 export function getConnectionLength(
   architecture: ArchitectureConfig,
   connection: ArchitectureConnection,
 ): number {
-  const from = architecture.nodePositions[connection.from];
-  const to = architecture.nodePositions[connection.to];
-  if (!from || !to) {
-    return 0;
-  }
-  return (
-    Math.abs(from.column - to.column) +
-    Math.abs(from.row - to.row)
+  const distance = getNodeDistance(
+    architecture,
+    connection.from,
+    connection.to,
   );
+  return Math.max(1, Math.ceil(distance / LINK_DISTANCE_UNIT));
 }
 
 export function getTotalConnectionCells(
@@ -520,6 +553,14 @@ interface ResponseState {
   completeAt: number;
 }
 
+interface ServerRoutePlan {
+  serverId: number;
+  nodeId: "serverA" | "serverB";
+  requestPath: ArchitectureNodeId[] | null;
+  databasePath: ArchitectureNodeId[] | null;
+  responsePath: ArchitectureNodeId[] | null;
+}
+
 interface ServerState {
   id: number;
   active: RequestState[];
@@ -550,11 +591,8 @@ const DATABASE_SLOW_READ_MS = 2_200;
 const DATABASE_INDEXED_READ_MS = 380;
 const DATABASE_INDEXED_WRITE_MS = 820;
 const DATABASE_INDEXED_SLOW_READ_MS = 850;
-const DIRECT_ROUTE_MS = 360;
-const BALANCED_ROUTE_MS = 560;
-const SERVER_TO_DATABASE_MS = 360;
-const DIRECT_RESPONSE_MS = 720;
-const BALANCED_RESPONSE_MS = 980;
+const LINK_TRAVEL_MS = 150;
+const LINK_HANDOFF_MS = 60;
 const MAX_SIMULATION_MS = 60_000;
 
 export const SYSTEM_CATALOG: Readonly<
@@ -695,8 +733,129 @@ export function hasBalancedRoute(
   );
 }
 
-function selectServer(balancedRoute: boolean, requestId: number): number {
-  return balancedRoute ? requestId % 2 : 0;
+function resolveRequestPath(
+  architecture: ArchitectureConfig,
+  nodeId: "serverA" | "serverB",
+): ArchitectureNodeId[] | null {
+  if (!isArchitectureNodePlaced(architecture, nodeId)) {
+    return null;
+  }
+  if (
+    architecture.hasLoadBalancer &&
+    isArchitectureNodePlaced(architecture, "loadBalancer") &&
+    hasDirectConnection(architecture, "entry", "loadBalancer") &&
+    hasDirectConnection(architecture, "loadBalancer", nodeId)
+  ) {
+    return ["entry", "loadBalancer", nodeId];
+  }
+  if (
+    nodeId === "serverA" &&
+    hasDirectConnection(architecture, "entry", "serverA")
+  ) {
+    return ["entry", "serverA"];
+  }
+  return null;
+}
+
+function resolveDatabasePath(
+  architecture: ArchitectureConfig,
+  nodeId: "serverA" | "serverB",
+): ArchitectureNodeId[] | null {
+  if (
+    !architecture.hasDatabase ||
+    !isArchitectureNodePlaced(architecture, nodeId) ||
+    !isArchitectureNodePlaced(architecture, "database") ||
+    !hasDirectConnection(architecture, nodeId, "database")
+  ) {
+    return null;
+  }
+  return [nodeId, "database"];
+}
+
+function resolveResponsePath(
+  architecture: ArchitectureConfig,
+  nodeId: "serverA" | "serverB",
+): ArchitectureNodeId[] | null {
+  if (
+    !isArchitectureNodePlaced(architecture, nodeId) ||
+    !isArchitectureNodePlaced(architecture, "database") ||
+    !hasDirectConnection(architecture, nodeId, "database")
+  ) {
+    return null;
+  }
+  if (
+    architecture.hasLoadBalancer &&
+    isArchitectureNodePlaced(architecture, "loadBalancer") &&
+    hasDirectConnection(architecture, nodeId, "loadBalancer") &&
+    hasDirectConnection(architecture, "loadBalancer", "exit")
+  ) {
+    return ["database", nodeId, "loadBalancer", "exit"];
+  }
+  if (
+    nodeId === "serverA" &&
+    hasDirectConnection(architecture, "serverA", "exit")
+  ) {
+    return ["database", "serverA", "exit"];
+  }
+  return null;
+}
+
+function resolveServerRoutePlans(
+  architecture: ArchitectureConfig,
+): ServerRoutePlan[] {
+  const plans: ServerRoutePlan[] = [];
+  const candidates: Array<"serverA" | "serverB"> = ["serverA", "serverB"];
+
+  for (const nodeId of candidates) {
+    if (!isArchitectureNodePlaced(architecture, nodeId)) {
+      continue;
+    }
+    plans.push({
+      serverId: plans.length,
+      nodeId,
+      requestPath: resolveRequestPath(architecture, nodeId),
+      databasePath: resolveDatabasePath(architecture, nodeId),
+      responsePath: resolveResponsePath(architecture, nodeId),
+    });
+  }
+
+  return plans;
+}
+
+function selectServer(
+  plans: ServerRoutePlan[],
+  requestId: number,
+): ServerRoutePlan {
+  return plans[requestId % plans.length] ?? plans[0];
+}
+
+function getLinkTransitMs(
+  architecture: ArchitectureConfig,
+  from: ArchitectureNodeId,
+  to: ArchitectureNodeId,
+): number {
+  return getConnectionLength(architecture, { from, to }) * LINK_TRAVEL_MS;
+}
+
+function getPathTransitMs(
+  architecture: ArchitectureConfig,
+  path: ArchitectureNodeId[],
+): number {
+  if (path.length < 2) {
+    return 0;
+  }
+  let duration = 0;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    duration += getLinkTransitMs(
+      architecture,
+      path[index],
+      path[index + 1],
+    );
+    if (index < path.length - 2) {
+      duration += LINK_HANDOFF_MS;
+    }
+  }
+  return duration;
 }
 
 function getDatabaseProcessingMs(
@@ -844,17 +1003,18 @@ export function simulateTrafficWave(
     ...architecture.performance,
   };
   const balancedRoute = hasBalancedRoute(architecture);
-  const singleServerRoute = hasSingleServerRoute(architecture);
-  const effectiveServerCount = balancedRoute ? 2 : singleServerRoute ? 1 : 0;
+  const routePlans = resolveServerRoutePlans(architecture).filter(
+    (plan) => plan.requestPath,
+  );
 
-  if (effectiveServerCount === 0) {
+  if (routePlans.length === 0) {
     return createNoRouteResult(wave, architecture);
   }
 
   const servers: ServerState[] = Array.from(
-    { length: effectiveServerCount },
-    (_, id) => ({
-      id,
+    routePlans,
+    (plan) => ({
+      id: plan.serverId,
       active: [],
       queue: [],
       handled: 0,
@@ -878,6 +1038,8 @@ export function simulateTrafficWave(
   const pendingDatabase: PendingRequest[] = [];
   const responses: ResponseState[] = [];
   const completedLatencies: number[] = [];
+  const hasMissingDatabaseRoute = routePlans.some((plan) => !plan.databasePath);
+  const hasMissingResponseRoute = routePlans.some((plan) => !plan.responsePath);
   let nextRequestIndex = 0;
   let completed = 0;
   let readCompleted = 0;
@@ -943,25 +1105,39 @@ export function simulateTrafficWave(
           type: "database_completed",
           operation: request.operation,
           serverId: request.serverId,
-          databaseQueueLength: database.queue.length,
-          databaseActiveCount: Math.max(0, database.active.length - 1),
+            databaseQueueLength: database.queue.length,
+            databaseActiveCount: Math.max(0, database.active.length - 1),
         });
-        events.push({
-          at: now,
-          requestId: request.id,
-          type: "response_started",
-          operation: request.operation,
-          serverId: request.serverId,
-        });
-        responses.push({
-          request,
-          completeAt:
-            now +
-            Math.round(
-              (balancedRoute ? BALANCED_RESPONSE_MS : DIRECT_RESPONSE_MS) *
-                performance.responseMultiplier,
-            ),
-        });
+        const plan = routePlans[request.serverId];
+        if (!plan?.responsePath) {
+          dropped += 1;
+          events.push({
+            at: now,
+            requestId: request.id,
+            type: "dropped",
+            operation: request.operation,
+            serverId: request.serverId,
+          });
+        } else {
+          events.push({
+            at: now,
+            requestId: request.id,
+            type: "response_started",
+            operation: request.operation,
+            serverId: request.serverId,
+          });
+          responses.push({
+            request,
+            completeAt:
+              now +
+              Math.round(
+                getPathTransitMs(
+                  architecture,
+                  plan.responsePath,
+                ) * performance.responseMultiplier,
+              ),
+          });
+        }
       } else {
         databaseStillActive.push(request);
       }
@@ -1049,19 +1225,36 @@ export function simulateTrafficWave(
           failTimeout(request);
         } else if (request.remainingMs <= 0) {
           server.handled += 1;
-          events.push({
-            at: now,
-            requestId: request.id,
-            type: "database_routed",
-            operation: request.operation,
-            serverId: server.id,
-            serverQueueLength: server.queue.length,
-            serverActiveCount: Math.max(0, server.active.length - 1),
-          });
-          pendingDatabase.push({
-            request,
-            arriveAt: now + SERVER_TO_DATABASE_MS,
-          });
+          const plan = routePlans[server.id];
+          if (!plan?.databasePath) {
+            dropped += 1;
+            events.push({
+              at: now,
+              requestId: request.id,
+              type: "dropped",
+              operation: request.operation,
+              serverId: server.id,
+            });
+          } else {
+            events.push({
+              at: now,
+              requestId: request.id,
+              type: "database_routed",
+              operation: request.operation,
+              serverId: server.id,
+              serverQueueLength: server.queue.length,
+              serverActiveCount: Math.max(0, server.active.length - 1),
+            });
+            pendingDatabase.push({
+              request,
+              arriveAt:
+                now +
+                getPathTransitMs(
+                  architecture,
+                  plan.databasePath,
+                ),
+            });
+          }
         } else {
           stillActive.push(request);
         }
@@ -1138,7 +1331,8 @@ export function simulateTrafficWave(
     ) {
       const requestId = nextRequestIndex + 1;
       const operation = getRequestOperation(wave, requestId);
-      const serverId = selectServer(balancedRoute, requestId - 1);
+      const plan = selectServer(routePlans, requestId - 1);
+      const serverId = plan.serverId;
       const request: RequestState = {
         id: requestId,
         spawnAt: spawnTimes[nextRequestIndex],
@@ -1161,7 +1355,12 @@ export function simulateTrafficWave(
       });
       pendingServer.push({
         request,
-        arriveAt: now + (balancedRoute ? BALANCED_ROUTE_MS : DIRECT_ROUTE_MS),
+        arriveAt:
+          now +
+          getPathTransitMs(
+            architecture,
+            plan.requestPath ?? ["entry"],
+          ),
       });
       nextRequestIndex += 1;
     }
@@ -1191,7 +1390,15 @@ export function simulateTrafficWave(
 
   let bottleneckNode: BottleneckNode = "none";
   let bottleneck = "요청이 서버 처리, DB 작업, 응답 반환까지 안정적으로 완료되었습니다.";
-  if (!passed && database.peakQueue >= peakServerQueue) {
+  if (!passed && hasMissingDatabaseRoute) {
+    bottleneckNode = "route";
+    bottleneck =
+      "요청은 App Server까지 도달하지만 Primary DB 링크가 없어 처리 후 실패합니다.";
+  } else if (!passed && hasMissingResponseRoute) {
+    bottleneckNode = "route";
+    bottleneck =
+      "DB 처리 후 응답이 출구까지 돌아갈 링크가 없어 완료되지 못했습니다.";
+  } else if (!passed && database.peakQueue >= peakServerQueue) {
     bottleneckNode = "database";
     bottleneck =
       "Primary DB Queue가 병목입니다. DB Index로 조회 시간을 줄여야 합니다.";
