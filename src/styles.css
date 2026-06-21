@@ -264,6 +264,8 @@ summary:focus-visible {
 
 .game-canvas canvas {
   display: block;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
 }
 
 .board-camera-help {

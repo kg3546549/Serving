@@ -43,7 +43,7 @@ export function resolveNodeGesture({
     return { type: "details", nodeId: source };
   }
   if (!moved && mode === "move") {
-    return { type: "select", nodeId: source };
+    return { type: "details", nodeId: source };
   }
   if (mode === "connect" && moved && target) {
     return { type: "connect", from: source, to: target };

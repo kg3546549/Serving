@@ -83,7 +83,7 @@ const HEIGHT = 720;
 const PLAYBACK_SCALE = 1;
 const TEXT_RESOLUTION = 3;
 const BOARD_ZOOM = {
-  min: 0.8,
+  min: 0.45,
   max: 2,
   step: 0.1,
 };

@@ -187,9 +187,9 @@ export const LINK_TIERS: readonly LinkTier[] = [
 ] as const;
 
 export const BOARD_TIERS: readonly BoardTier[] = [
-  { level: 1, columns: 7, rows: 4, width: 760, height: 390, upgradeCost: 90 },
-  { level: 2, columns: 10, rows: 5, width: 980, height: 500, upgradeCost: 140 },
-  { level: 3, columns: 13, rows: 6, width: 1160, height: 610, upgradeCost: null },
+  { level: 1, columns: 9, rows: 5, width: 1024, height: 576, upgradeCost: 90 },
+  { level: 2, columns: 12, rows: 6, width: 1366, height: 768, upgradeCost: 140 },
+  { level: 3, columns: 16, rows: 8, width: 1680, height: 960, upgradeCost: null },
 ] as const;
 
 export const NODE_PORT_LIMITS: Readonly<

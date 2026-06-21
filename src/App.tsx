@@ -351,11 +351,7 @@ export function App(): React.JSX.Element {
         />
 
         <section className="board-stage" aria-label="아키텍처 보드">
-          <div
-            className={`board-stage-layout ${
-              selectedNode ? "board-stage-layout--details" : ""
-            }`}
-          >
+          <div className="board-stage-layout">
             <div className="board-surface">
               <div className="board-meta board-meta--overlay">
                 <span>BOARD {boardTier.level}</span>

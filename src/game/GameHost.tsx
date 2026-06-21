@@ -96,7 +96,7 @@ export function GameHost({
       type: Phaser.WEBGL,
       width: hostElement.clientWidth || 1200,
       height: hostElement.clientHeight || 720,
-      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      resolution: window.devicePixelRatio || 1,
       parent: hostElement,
       backgroundColor: "#f3f8ff",
       disableContextMenu: true,
@@ -111,7 +111,9 @@ export function GameHost({
       },
       render: {
         pixelArt: false,
-        roundPixels: false,
+        roundPixels: true,
+        antialias: true,
+        resolution: window.devicePixelRatio || 1,
       },
     }) as Phaser.Types.Core.GameConfig & { resolution: number });
 
