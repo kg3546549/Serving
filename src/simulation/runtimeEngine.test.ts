@@ -7,6 +7,7 @@ import {
 import {
   applyRuntimeArchitectureMutation,
   createRuntimeSimulationState,
+  getRuntimePacketTimeoutProgress,
   stepRuntimeSimulation,
 } from "./runtimeEngine";
 
@@ -76,5 +77,53 @@ describe("runtimeEngine", () => {
     expect(
       state.packets.some((packet) => packet.phase === "dropped"),
     ).toBe(true);
+  });
+
+  it("creates a visible dropped packet when no request route exists", () => {
+    const architecture: ArchitectureConfig = {
+      ...directArchitecture,
+      serverCount: 0,
+      hasDatabase: false,
+      nodePositions: {
+        entry: DEFAULT_NODE_POSITIONS.entry,
+        exit: DEFAULT_NODE_POSITIONS.exit,
+      },
+      connections: [],
+      boardSlots: {
+        loadBalancer: null,
+        serverA: null,
+        serverB: null,
+        database: null,
+      },
+    };
+    const state = createRuntimeSimulationState(
+      architecture,
+      STAGE_ONE_WAVES[0],
+    );
+
+    stepRuntimeSimulation(state, 100);
+
+    expect(state.metrics.dropped).toBe(1);
+    expect(state.packets).toHaveLength(1);
+    expect(state.packets[0].phase).toBe("dropped");
+  });
+
+  it("fills each packet timeout ring from its own deadline", () => {
+    const state = createRuntimeSimulationState(
+      directArchitecture,
+      STAGE_ONE_WAVES[0],
+    );
+    stepRuntimeSimulation(state, 100);
+    const packet = state.packets[0];
+
+    expect(
+      getRuntimePacketTimeoutProgress(
+        packet,
+        packet.spawnAtMs + STAGE_ONE_WAVES[0].deadlineMs / 2,
+      ),
+    ).toBeCloseTo(0.5);
+    expect(
+      getRuntimePacketTimeoutProgress(packet, packet.deadlineAtMs + 1_000),
+    ).toBe(1);
   });
 });

@@ -57,6 +57,13 @@ export function GameHost({
       return;
     }
     const hostElement = hostRef.current;
+    const initialWidth = Math.max(1, Math.round(hostElement.clientWidth || 1200));
+    const initialHeight = Math.max(1, Math.round(hostElement.clientHeight || 720));
+    // Phaser 3 RESIZE ignores DPR, so supersample the board even at 100% OS scale.
+    const getRenderDensity = (width: number, height: number): number =>
+      Math.max(1, Math.min(2, 4096 / width, 4096 / height));
+    let renderDensity = getRenderDensity(initialWidth, initialHeight);
+    hostElement.dataset.renderDensity = renderDensity.toFixed(2);
 
     const unsubscribeReady = gameEvents.on<void>(
       GAME_EVENTS.SCENE_READY,
@@ -94,9 +101,8 @@ export function GameHost({
 
     const game = new Phaser.Game(({
       type: Phaser.WEBGL,
-      width: hostElement.clientWidth || 1200,
-      height: hostElement.clientHeight || 720,
-      resolution: window.devicePixelRatio || 1,
+      width: Math.round(initialWidth * renderDensity),
+      height: Math.round(initialHeight * renderDensity),
       parent: hostElement,
       backgroundColor: "#f3f8ff",
       disableContextMenu: true,
@@ -104,19 +110,18 @@ export function GameHost({
       antialias: true,
       transparent: false,
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.NONE,
         autoCenter: Phaser.Scale.NO_CENTER,
-        width: hostElement.clientWidth || 1200,
-        height: hostElement.clientHeight || 720,
-        resolution: window.devicePixelRatio || 1,
+        width: Math.round(initialWidth * renderDensity),
+        height: Math.round(initialHeight * renderDensity),
       },
       render: {
         pixelArt: false,
-        roundPixels: true,
+        roundPixels: false,
         antialias: true,
-        resolution: window.devicePixelRatio || 1,
+        powerPreference: "high-performance",
       },
-    }) as Phaser.Types.Core.GameConfig & { resolution: number });
+    }) as Phaser.Types.Core.GameConfig);
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -125,17 +130,19 @@ export function GameHost({
       }
       const width = Math.max(1, Math.round(entry.contentRect.width));
       const height = Math.max(1, Math.round(entry.contentRect.height));
-      
-      // Phaser의 scale manager 리사이즈 호출 (내부적으로 resolution 배율에 맞춰 canvas 버퍼 크기를 자동 설정함)
-      game.scale.resize(width, height);
+      renderDensity = getRenderDensity(width, height);
+      hostElement.dataset.renderDensity = renderDensity.toFixed(2);
+      const renderWidth = Math.max(1, Math.round(width * renderDensity));
+      const renderHeight = Math.max(1, Math.round(height * renderDensity));
 
-      // 고DPI/Retina 화면에서 canvas의 style 크기를 CSS 픽셀 크기로 명시적으로 고정하여
-      // Phaser scale manager의 크기 제어 버그를 방지하고 선명한 해상도를 유지합니다.
+      game.scale.resize(renderWidth, renderHeight);
       const canvas = game.canvas;
       if (canvas) {
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
       }
+      hostElement.dataset.renderWidth = String(renderWidth);
+      hostElement.dataset.renderHeight = String(renderHeight);
     });
     resizeObserver.observe(hostElement);
 

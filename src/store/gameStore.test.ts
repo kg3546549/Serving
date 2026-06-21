@@ -1,7 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { STAGE_ONE_WAVES } from "../campaign/campaignData";
-import { simulateTrafficWave } from "../simulation/trafficSimulation";
+import { createRuntimeSimulationState } from "../simulation/runtimeEngine";
+import {
+  simulateTrafficWave,
+  type ArchitectureConfig,
+} from "../simulation/trafficSimulation";
 import { useGameStore } from "./gameStore";
+
+const runtimeArchitecture: ArchitectureConfig = {
+  serverCount: 1,
+  hasLoadBalancer: false,
+  hasDatabase: true,
+  databaseIndexed: false,
+  linkLevel: 1,
+  boardLevel: 1,
+  nodePositions: {
+    entry: { column: 320, row: 280 },
+    exit: { column: 880, row: 280 },
+    serverA: { column: 470, row: 320 },
+    database: { column: 620, row: 430 },
+  },
+  connections: [
+    { from: "entry", to: "serverA" },
+    { from: "serverA", to: "database" },
+    { from: "serverA", to: "exit" },
+  ],
+  boardSlots: {
+    loadBalancer: null,
+    serverA: "server-a",
+    serverB: null,
+    database: "database-a",
+  },
+};
 
 describe("campaign store", () => {
   it("starts with an empty inventory and only fixed ingress/egress", () => {
@@ -255,5 +285,46 @@ describe("campaign store", () => {
     expect(useGameStore.getState().phase).toBe("prepare");
     expect(useGameStore.getState().playerXp).toBe(xpBeforeContinue);
     expect(useGameStore.getState().playerLevel).toBe(levelBeforeContinue);
+  });
+
+  it("grants two credits when a runtime request completes", () => {
+    useGameStore.getState().resetCampaign();
+    const startingCoins = useGameStore.getState().coins;
+    useGameStore.setState({
+      phase: "running",
+      architecture: runtimeArchitecture,
+      runtimeState: createRuntimeSimulationState(
+        runtimeArchitecture,
+        STAGE_ONE_WAVES[0],
+      ),
+    });
+
+    for (
+      let tick = 0;
+      tick < 50 && useGameStore.getState().coins === startingCoins;
+      tick += 1
+    ) {
+      useGameStore.getState().stepSimulation(100);
+    }
+
+    expect(useGameStore.getState().coins).toBe(startingCoins + 2);
+    expect(useGameStore.getState().serviceHp).toBe(100);
+  });
+
+  it("removes two service HP when a runtime request is dropped", () => {
+    useGameStore.getState().resetCampaign();
+    const architecture = useGameStore.getState().architecture;
+    useGameStore.setState({
+      phase: "running",
+      runtimeState: createRuntimeSimulationState(
+        architecture,
+        STAGE_ONE_WAVES[0],
+      ),
+    });
+
+    useGameStore.getState().stepSimulation(100);
+
+    expect(useGameStore.getState().serviceHp).toBe(98);
+    expect(useGameStore.getState().liveMetrics.failed).toBe(1);
   });
 });

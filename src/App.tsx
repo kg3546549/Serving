@@ -271,12 +271,13 @@ export function App(): React.JSX.Element {
   const [isScreenDamaged, setIsScreenDamaged] = useState(false);
 
   useEffect(() => {
-    if (serviceHp < prevHpRef.current) {
+    const tookDamage = serviceHp < prevHpRef.current;
+    prevHpRef.current = serviceHp;
+    if (tookDamage) {
       setIsScreenDamaged(true);
       const timer = setTimeout(() => setIsScreenDamaged(false), 400);
       return () => clearTimeout(timer);
     }
-    prevHpRef.current = serviceHp;
   }, [serviceHp]);
 
   useEffect(() => {

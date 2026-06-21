@@ -11,6 +11,7 @@ import {
   applyRuntimeArchitectureMutation,
   buildWaveResultFromRuntime,
   createRuntimeSimulationState,
+  getRuntimePacketTimeoutProgress,
   isRuntimeWaveSettled,
   stepRuntimeSimulation,
   type RuntimePacket,
@@ -119,6 +120,7 @@ const COLORS = {
 };
 
 export class ArchitectureScene extends Phaser.Scene {
+  private renderDensity = 1;
   private architecture: ArchitectureConfig = {
     serverCount: 0,
     hasLoadBalancer: false,
@@ -179,6 +181,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.renderDensity = this.readRenderDensity();
     this.cameras.main.setBackgroundColor("#f3f7fc");
     this.input.mouse?.disableContextMenu();
     this.createVfxTextures();
@@ -293,6 +296,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private handleScaleResize(): void {
+    this.renderDensity = this.readRenderDensity();
     this.layoutFixedHud();
     this.fitBoardView(false);
   }
@@ -321,14 +325,16 @@ export class ArchitectureScene extends Phaser.Scene {
         const camera = this.cameras.main;
         const beforeZoom = camera.getWorldPoint(pointer.x, pointer.y);
         const direction = deltaY > 0 ? -1 : 1;
-        const nextZoom = Phaser.Math.Clamp(
-          Number((camera.zoom + direction * BOARD_ZOOM.step).toFixed(2)),
+        const currentZoom = this.getLogicalCameraZoom();
+        const nextLogicalZoom = Phaser.Math.Clamp(
+          Number((currentZoom + direction * BOARD_ZOOM.step).toFixed(2)),
           BOARD_ZOOM.min,
           BOARD_ZOOM.max,
         );
-        if (nextZoom === camera.zoom) {
+        if (nextLogicalZoom === currentZoom) {
           return;
         }
+        const nextZoom = nextLogicalZoom * this.renderDensity;
         camera.setZoom(nextZoom);
         camera.scrollX = beforeZoom.x - pointer.x / nextZoom;
         camera.scrollY = beforeZoom.y - pointer.y / nextZoom;
@@ -372,10 +378,12 @@ export class ArchitectureScene extends Phaser.Scene {
   private fitBoardView(showStatus = true): void {
     const camera = this.cameras.main;
     const board = getBoardBounds(this.architecture.boardLevel);
+    const logicalWidth = camera.width / this.renderDensity;
+    const logicalHeight = camera.height / this.renderDensity;
     const zoom = Phaser.Math.Clamp(
       Math.min(
-        Math.max(1, camera.width - 160) / Math.max(1, board.width),
-        Math.max(1, camera.height - 160) / Math.max(1, board.height),
+        Math.max(1, logicalWidth - 160) / Math.max(1, board.width),
+        Math.max(1, logicalHeight - 160) / Math.max(1, board.height),
       ),
       0.82,
       1.18,
@@ -383,7 +391,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const boardCenterX = board.left + board.width / 2;
     const boardCenterY = board.top + board.height / 2;
 
-    camera.setZoom(Number(zoom.toFixed(2)));
+    camera.setZoom(Number((zoom * this.renderDensity).toFixed(3)));
     this.updateCameraBounds();
     camera.centerOn(boardCenterX, boardCenterY);
     this.clampCamera();
@@ -398,13 +406,12 @@ export class ArchitectureScene extends Phaser.Scene {
   private adjustBoardZoom(delta: number): void {
     const camera = this.cameras.main;
     const center = camera.getWorldPoint(camera.width / 2, camera.height / 2);
-    camera.setZoom(
-      Phaser.Math.Clamp(
-        Number((camera.zoom + delta).toFixed(2)),
-        BOARD_ZOOM.min,
-        BOARD_ZOOM.max,
-      ),
+    const nextLogicalZoom = Phaser.Math.Clamp(
+      Number((this.getLogicalCameraZoom() + delta).toFixed(2)),
+      BOARD_ZOOM.min,
+      BOARD_ZOOM.max,
     );
+    camera.setZoom(nextLogicalZoom * this.renderDensity);
     this.updateCameraBounds();
     camera.centerOn(center.x, center.y);
     this.clampCamera();
@@ -451,7 +458,8 @@ export class ArchitectureScene extends Phaser.Scene {
       return;
     }
     const camera = this.cameras.main;
-    host.dataset.cameraZoom = camera.zoom.toFixed(2);
+    const logicalZoom = this.getLogicalCameraZoom();
+    host.dataset.cameraZoom = logicalZoom.toFixed(2);
     host.dataset.cameraScrollX = camera.scrollX.toFixed(1);
     host.dataset.cameraScrollY = camera.scrollY.toFixed(1);
     host.dataset.cameraMinX = this.cameraBounds.left.toFixed(1);
@@ -464,7 +472,18 @@ export class ArchitectureScene extends Phaser.Scene {
       this.cameraBounds.bottom -
       camera.height / camera.zoom
     ).toFixed(1);
-    gameEvents.emit(GAME_EVENTS.CAMERA_CHANGED, { zoom: camera.zoom });
+    gameEvents.emit(GAME_EVENTS.CAMERA_CHANGED, { zoom: logicalZoom });
+  }
+
+  private readRenderDensity(): number {
+    const density = Number(
+      this.game.canvas.parentElement?.dataset.renderDensity ?? "1",
+    );
+    return Number.isFinite(density) && density > 0 ? density : 1;
+  }
+
+  private getLogicalCameraZoom(): number {
+    return this.cameras.main.zoom / this.renderDensity;
   }
 
   private createVfxTextures(): void {
@@ -1280,7 +1299,10 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private handleInventoryDrop(payload: InventoryDropPayload): void {
-    const worldPosition = this.cameras.main.getWorldPoint(payload.x, payload.y);
+    const worldPosition = this.cameras.main.getWorldPoint(
+      payload.x * this.renderDensity,
+      payload.y * this.renderDensity,
+    );
 
     const targetNodeId = (["serverA", "serverB", "database"] as const).find((role) => {
       const pos = this.getNodePosition(role);
@@ -1545,8 +1567,11 @@ export class ArchitectureScene extends Phaser.Scene {
         },
       )
       .setOrigin(0.5);
-    const timerGraphics = this.add.graphics();
-    container.add([shadow, card, user, method, timerGraphics]);
+    const timerGraphics = this.add
+      .graphics()
+      .setPosition(entry.x, entry.y)
+      .setDepth(14);
+    container.add([shadow, card, user, method]);
     this.requestTimerGraphics.set(requestId, timerGraphics);
     container.setScale(0);
     container.postFX.addGlow(color, 1.5, 0, false, 0.1, 6);
@@ -2164,32 +2189,45 @@ export class ArchitectureScene extends Phaser.Scene {
       // Update circular timeout progress bar
       const timerGraphics = this.requestTimerGraphics.get(packet.id);
       if (timerGraphics) {
-        const totalLimit = Math.max(1, packet.deadlineAtMs - packet.spawnAtMs);
-        const elapsed = Math.max(0, state.timeMs - packet.spawnAtMs);
-        const progress = Phaser.Math.Clamp(elapsed / totalLimit, 0, 1);
+        timerGraphics
+          .setPosition(view.x, view.y)
+          .setVisible(
+            packet.phase !== "completed" &&
+              packet.phase !== "dropped" &&
+              packet.phase !== "timedOut",
+          );
+        const progress = getRuntimePacketTimeoutProgress(
+          packet,
+          state.timeMs,
+        );
 
         timerGraphics.clear();
-        
-        // Background track (subtle semi-transparent dark circle)
-        timerGraphics.lineStyle(3.5, 0x000000, 0.25);
+
+        timerGraphics.lineStyle(4, COLORS.ink, 0.2);
         timerGraphics.strokeCircle(0, 0, 23);
 
-        // Determine color based on progress (closer to timeout = warning color)
-        let color = 0x22c55e; // Green
+        let color = COLORS.green;
         if (progress > 0.8) {
-          color = 0xef4444; // Red
+          color = COLORS.red;
         } else if (progress > 0.5) {
-          color = 0xf97316; // Orange
+          color = COLORS.orange;
         }
 
-        // Draw radial progress arc
-        const startAngle = -Math.PI / 2; // 12 o'clock (top)
+        const startAngle = -Math.PI / 2;
         const endAngle = startAngle + (Math.PI * 2 * progress);
 
-        timerGraphics.lineStyle(3.5, color, 0.9);
+        timerGraphics.lineStyle(progress > 0.8 ? 5 : 4, color, 0.96);
         timerGraphics.beginPath();
         timerGraphics.arc(0, 0, 23, startAngle, endAngle, false);
         timerGraphics.strokePath();
+
+        if (progress > 0.8) {
+          timerGraphics.fillStyle(
+            color,
+            0.12 + Math.sin(state.timeMs / 90) * 0.06,
+          );
+          timerGraphics.fillCircle(0, 0, 20);
+        }
       }
     }
   }
@@ -2220,24 +2258,115 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private playMoneyFlyEffect(x: number, y: number): void {
-    const text = this.add.text(x, y - 20, "+1$", {
-      fontFamily: "Pretendard",
-      fontSize: "18px",
-      fontStyle: "bold",
-      color: "#1da4a0",
-      stroke: "#ffffff",
-      strokeThickness: 3
-    }).setOrigin(0.5).setDepth(15);
+    this.setPacketEffectMetadata("credits");
+    const rewardText = this.add
+      .text(x, y - 28, "+2 CREDITS", {
+        fontFamily: "Pretendard",
+        fontSize: "17px",
+        fontStyle: "bold",
+        color: "#b77900",
+        stroke: "#ffffff",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+    const rewardRing = this.add
+      .circle(x, y, 22, COLORS.yellow, 0.18)
+      .setStrokeStyle(4, COLORS.yellow, 0.95)
+      .setDepth(30);
+
+    for (let index = 0; index < 7; index += 1) {
+      const angle = Phaser.Math.DegToRad(-150 + index * 50);
+      const distance = 34 + (index % 3) * 10;
+      const coin = this.add
+        .circle(x, y, 7, COLORS.yellow, 1)
+        .setStrokeStyle(2, 0xffffff, 0.95)
+        .setDepth(33);
+      const coinMark = this.add
+        .text(x, y, "¢", {
+          color: "#8f6500",
+          fontFamily: "Arial",
+          fontSize: "9px",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setDepth(34);
+      this.tweens.add({
+        targets: [coin, coinMark],
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance - 14,
+        alpha: 0,
+        scale: 0.55,
+        duration: 560 + index * 35,
+        ease: "Cubic.Out",
+        onComplete: () => {
+          coin.destroy();
+          coinMark.destroy();
+        },
+      });
+    }
 
     this.tweens.add({
-      targets: text,
-      y: y - 75,
+      targets: rewardRing,
+      scale: 2.2,
       alpha: 0,
-      scale: 1.15,
-      duration: 750,
-      ease: "Cubic.Out",
-      onComplete: () => text.destroy()
+      duration: 520,
+      ease: "Quad.Out",
+      onComplete: () => rewardRing.destroy(),
     });
+    this.tweens.add({
+      targets: rewardText,
+      y: y - 88,
+      alpha: 0,
+      scale: 1.18,
+      duration: 820,
+      ease: "Cubic.Out",
+      onComplete: () => rewardText.destroy(),
+    });
+  }
+
+  private playPacketHitEffect(
+    x: number,
+    y: number,
+    reason: "DROP" | "TIMEOUT",
+  ): void {
+    this.setPacketEffectMetadata(reason.toLowerCase());
+    const color = reason === "TIMEOUT" ? COLORS.orange : COLORS.red;
+    const shock = this.add
+      .circle(x, y, 20, color, 0.24)
+      .setStrokeStyle(5, color, 1)
+      .setDepth(31);
+    const damageText = this.add
+      .text(x, y - 32, `-2 HP · ${reason}`, {
+        color: "#c43f52",
+        fontFamily: "Pretendard",
+        fontSize: "14px",
+        fontStyle: "bold",
+        stroke: "#ffffff",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+
+    this.playParticleBurst(x, y, color, 18);
+    this.tweens.add({
+      targets: shock,
+      scale: 2.7,
+      alpha: 0,
+      duration: 480,
+      ease: "Quad.Out",
+      onComplete: () => shock.destroy(),
+    });
+    this.tweens.add({
+      targets: damageText,
+      y: y - 78,
+      alpha: 0,
+      duration: 720,
+      ease: "Cubic.Out",
+      onComplete: () => damageText.destroy(),
+    });
+    this.cameras.main.shake(190, 0.008);
+    this.cameras.main.flash(210, 239, 70, 92, false);
   }
 
   private presentRuntimeState(state: RuntimeSimulationState): void {
@@ -2253,27 +2382,48 @@ export class ArchitectureScene extends Phaser.Scene {
       if (packet.phase === "dropped") {
         const request = this.requestViews.get(packet.id);
         if (request) {
-          this.playParticleBurst(request.x, request.y, 0xe86d7e, 12);
+          this.playPacketHitEffect(request.x, request.y, "DROP");
+        } else {
+          const entry = this.getNodePosition("entry");
+          this.playPacketHitEffect(entry.x, entry.y, "DROP");
         }
-        this.cameras.main.shake(150, 0.006);
-        this.cameras.main.flash(180, 239, 86, 112, false);
         this.failRequest(packet.id, "DROP");
       } else if (packet.phase === "timedOut") {
-        this.cameras.main.shake(150, 0.006);
-        this.cameras.main.flash(180, 239, 86, 112, false);
-        this.failRequest(packet.id, "TIMEOUT");
-      } else if (packet.phase === "completed") {
         const request = this.requestViews.get(packet.id);
         if (request) {
-          this.playMoneyFlyEffect(request.x, request.y);
+          this.playPacketHitEffect(request.x, request.y, "TIMEOUT");
         } else {
-          const exitPos = this.getNodePosition("exit");
-          this.playMoneyFlyEffect(exitPos.x, exitPos.y);
+          const entry = this.getNodePosition("entry");
+          this.playPacketHitEffect(entry.x, entry.y, "TIMEOUT");
         }
+        this.failRequest(packet.id, "TIMEOUT");
+      } else if (packet.phase === "completed") {
+        const exitPos = this.getNodePosition("exit");
+        this.playMoneyFlyEffect(exitPos.x, exitPos.y);
         this.completeRequest(packet.id);
       }
       this.runtimePacketPhases.set(packet.id, packet.phase);
     }
+    const host = this.game.canvas.parentElement;
+    if (host) {
+      host.dataset.timeoutRingCount = String(
+        state.packets.filter(
+          (packet) =>
+            packet.phase !== "completed" &&
+            packet.phase !== "dropped" &&
+            packet.phase !== "timedOut",
+        ).length,
+      );
+    }
+  }
+
+  private setPacketEffectMetadata(effect: string): void {
+    const host = this.game.canvas.parentElement;
+    if (!host) {
+      return;
+    }
+    host.dataset.lastPacketEffect = effect;
+    host.dataset.lastPacketEffectAt = String(Date.now());
   }
 
   private worldToGrid(x: number, y: number): GridPosition | null {
@@ -2376,6 +2526,12 @@ export class ArchitectureScene extends Phaser.Scene {
     this.runtimeTickTimer = null;
     this.runtimeState = null;
     this.runtimePacketPhases.clear();
+    const host = this.game.canvas.parentElement;
+    if (host) {
+      host.dataset.timeoutRingCount = "0";
+      delete host.dataset.lastPacketEffect;
+      delete host.dataset.lastPacketEffectAt;
+    }
     for (const requestId of [...this.requestViews.keys()]) {
       this.destroyRequest(requestId);
     }

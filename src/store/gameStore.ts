@@ -972,6 +972,10 @@ export const useGameStore = create<GameState>((set) => ({
       if (!state.runtimeState || state.phase !== "running") {
         return state;
       }
+      const prevCompleted = state.runtimeState.metrics.completed;
+      const prevFailed =
+        state.runtimeState.metrics.dropped +
+        state.runtimeState.metrics.timedOut;
       const nextRuntime = stepRuntimeSimulation(state.runtimeState, deltaMs);
       
       const liveMetrics: LiveWaveMetrics = {
@@ -984,11 +988,8 @@ export const useGameStore = create<GameState>((set) => ({
         databaseQueue: nextRuntime.nodes.database.queue.length,
       };
 
-      const prevCompleted = state.runtimeState.metrics.completed;
       const nextCompleted = nextRuntime.metrics.completed;
       const diffCompleted = nextCompleted - prevCompleted;
-      
-      const prevFailed = state.runtimeState.metrics.dropped + state.runtimeState.metrics.timedOut;
       const nextFailed = nextRuntime.metrics.dropped + nextRuntime.metrics.timedOut;
       const diffFailed = nextFailed - prevFailed;
 

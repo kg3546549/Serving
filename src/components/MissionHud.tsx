@@ -33,24 +33,26 @@ export function MissionHud({
   const [isDamaged, setIsDamaged] = useState(false);
 
   useEffect(() => {
-    if (serviceHp < prevHpRef.current) {
+    const tookDamage = serviceHp < prevHpRef.current;
+    prevHpRef.current = serviceHp;
+    if (tookDamage) {
       setIsDamaged(true);
       const timer = setTimeout(() => setIsDamaged(false), 500);
       return () => clearTimeout(timer);
     }
-    prevHpRef.current = serviceHp;
   }, [serviceHp]);
 
   const prevCoinsRef = useRef(coins);
   const [isCoinsGained, setIsCoinsGained] = useState(false);
 
   useEffect(() => {
-    if (coins > prevCoinsRef.current) {
+    const gainedCoins = coins > prevCoinsRef.current;
+    prevCoinsRef.current = coins;
+    if (gainedCoins) {
       setIsCoinsGained(true);
       const timer = setTimeout(() => setIsCoinsGained(false), 400);
       return () => clearTimeout(timer);
     }
-    prevCoinsRef.current = coins;
   }, [coins]);
 
   const settledRequests = liveMetrics.completed + liveMetrics.failed;
@@ -100,6 +102,7 @@ export function MissionHud({
         <span 
           className={`mini-resource hp ${isDamaged ? "hp-damaged-shake" : ""}`} 
           aria-label={`서비스 HP ${serviceHp}`}
+          aria-live="polite"
           style={{ display: "flex", flexDirection: "column", gap: "5px" }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%" }}>
@@ -127,7 +130,11 @@ export function MissionHud({
           <small>REQUESTS</small>
           <strong>{requestValue}</strong>
         </span>
-        <span className={`mini-resource credits ${isCoinsGained ? "credits-gain-bounce" : ""}`} aria-label={`보유 재화 ${coins}`}>
+        <span
+          className={`mini-resource credits ${isCoinsGained ? "credits-gain-bounce" : ""}`}
+          aria-label={`보유 재화 ${coins}`}
+          aria-live="polite"
+        >
           <small>CREDITS</small>
           <strong>{coins}</strong>
         </span>

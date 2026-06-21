@@ -78,6 +78,17 @@ export interface RuntimeSimulationState {
   databasePeakActive: number;
 }
 
+export function getRuntimePacketTimeoutProgress(
+  packet: RuntimePacket,
+  timeMs: number,
+): number {
+  const duration = Math.max(1, packet.deadlineAtMs - packet.spawnAtMs);
+  return Math.min(
+    1,
+    Math.max(0, (timeMs - packet.spawnAtMs) / duration),
+  );
+}
+
 interface ServerRoutePlan {
   nodeId: "serverA" | "serverB";
   requestPath: ArchitectureNodeId[] | null;
@@ -479,6 +490,20 @@ export function stepRuntimeSimulation(
     }
     const plan = getLeastBusyServer(plans, state.nodes);
     if (!plan?.requestPath) {
+      state.packets.push({
+        id: requestId,
+        operation: getRequestOperation(state.wave, requestId),
+        phase: "dropped",
+        spawnAtMs,
+        deadlineAtMs: spawnAtMs + state.wave.deadlineMs,
+        serverNodeId: "serverA",
+        path: ["entry"],
+        pathSegmentIndex: 0,
+        pathProgressMs: 0,
+        pathDurationMs: 0,
+        remainingProcessMs: 0,
+        enteredPhaseAtMs: state.timeMs,
+      });
       state.metrics.dropped += 1;
       state.metrics.failed += 1;
       state.pendingSpawnIds.splice(index, 1);
