@@ -5,6 +5,7 @@ import type {
   GridPosition,
   TrafficEvent,
   WaveSimulationResult,
+  NodeInstance,
 } from "../simulation/trafficSimulation";
 import {
   applyRuntimeArchitectureMutation,
@@ -33,6 +34,7 @@ import {
   validateNewConnection,
 } from "../simulation/trafficSimulation";
 import type { LiveWaveMetrics } from "../store/gameStore";
+import { useGameStore } from "../store/gameStore";
 import {
   GAME_EVENTS,
   gameEvents,
@@ -50,6 +52,7 @@ interface NodeView {
   pressure?: Phaser.GameObjects.Graphics;
   queueText?: Phaser.GameObjects.Text;
   stateText?: Phaser.GameObjects.Text;
+  modulesGlow?: Phaser.GameObjects.Graphics;
 }
 
 interface GridCellView {
@@ -1135,12 +1138,62 @@ export class ArchitectureScene extends Phaser.Scene {
     this.drawConnections();
     this.refreshGrid();
     this.showLinkBudget();
+    this.applyNodeModulesVisuals(this.architecture);
     if (playBuildEffect) {
       const target = [...this.nodes.values()].find(
         (node) => node.container.visible && node.container.scaleX === 1,
       );
       if (target) {
         this.playBuildPop(target.container);
+      }
+    }
+  }
+
+  private applyNodeModulesVisuals(architecture: ArchitectureConfig): void {
+    const owned = useGameStore.getState().inventory.filter(
+      (item): item is NodeInstance => item !== null,
+    );
+    const byId = new Map(owned.map((item) => [item.id, item]));
+
+    for (const role of ["serverA", "serverB", "database"] as const) {
+      const nodeView = this.nodes.get(role);
+      if (!nodeView) continue;
+      
+      const instanceId = architecture.boardSlots[role];
+      const item = instanceId ? byId.get(instanceId) : undefined;
+      const modules = item?.modules ?? [];
+
+      if (nodeView.modulesGlow) {
+        nodeView.modulesGlow.destroy();
+        nodeView.modulesGlow = undefined;
+      }
+
+      if (modules.length > 0) {
+        const glow = this.add.graphics();
+        glow.lineStyle(3, 0x06b6d4, 0.8);
+        const mods = modules as string[];
+        if (mods.includes("redis") || mods.includes("cache")) {
+          glow.lineStyle(3.5, 0x7dd9be, 0.95);
+        } else if (mods.includes("sqs") || mods.includes("kafka")) {
+          glow.lineStyle(3.5, 0xb4a1e5, 0.95);
+        } else if (mods.includes("waf")) {
+          glow.lineStyle(3.5, 0x88b8ef, 0.95);
+        }
+        glow.strokeCircle(0, 0, 48);
+        nodeView.container.add(glow);
+        nodeView.container.sendToBack(glow);
+        nodeView.modulesGlow = glow;
+
+        this.tweens.add({
+          targets: glow,
+          scaleX: 1.08,
+          scaleY: 1.08,
+          alpha: 0.5,
+          duration: 1100,
+          yoyo: true,
+          loop: -1,
+          ease: "Sine.InOut",
+        });
       }
     }
   }
@@ -1240,6 +1293,30 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private handleInventoryDrop(payload: InventoryDropPayload): void {
     const worldPosition = this.cameras.main.getWorldPoint(payload.x, payload.y);
+
+    const targetNodeId = (["serverA", "serverB", "database"] as const).find((role) => {
+      const pos = this.getNodePosition(role);
+      const isPlaced = isArchitectureNodePlaced(this.architecture, role);
+      if (!isPlaced) return false;
+      const distance = Phaser.Math.Distance.Between(worldPosition.x, worldPosition.y, pos.x, pos.y);
+      return distance < 45;
+    });
+
+    if (targetNodeId && payload.instanceId) {
+      const store = useGameStore.getState();
+      const item = store.inventory.find((i: NodeInstance | null) => i?.id === payload.instanceId);
+      if (item) {
+        const isModule = ["sqs", "kafka", "redis", "s3", "waf", "cognito", "rdsReplica", "documentDb"].includes(item.type);
+        if (isModule) {
+          store.equipModule(targetNodeId, payload.instanceId);
+          this.activePlacementNode = null;
+          this.activePlacementInstanceId = null;
+          this.refreshGrid();
+          return;
+        }
+      }
+    }
+
     const position = this.worldToGrid(worldPosition.x, worldPosition.y);
     if (
       !position ||
@@ -1990,55 +2067,108 @@ export class ArchitectureScene extends Phaser.Scene {
     this.resetTraffic();
     this.isWaveRunning = true;
     this.cancelPlacement();
-    this.runtimeState = createRuntimeSimulationState(architecture, wave);
     this.runtimePacketPhases.clear();
     await this.showWaveCountdown(wave.id);
-    this.runtimeTickTimer?.remove(false);
-    this.runtimeTickTimer = this.time.addEvent({
-      delay: 100,
-      loop: true,
-      callback: () => this.stepRealtimeWave(),
-    });
   }
 
-  private stepRealtimeWave(): void {
-    if (!this.runtimeState) {
-      return;
-    }
-    stepRuntimeSimulation(this.runtimeState, 100);
-    this.presentRuntimeState(this.runtimeState);
-    this.progress.completed = this.runtimeState.metrics.completed;
-    this.progress.failed =
-      this.runtimeState.metrics.dropped + this.runtimeState.metrics.timedOut;
-    this.progress.queueByServer = [
-      this.runtimeState.nodes.serverA.queue.length,
-      this.runtimeState.nodes.serverB.queue.length,
-    ];
-    this.progress.databaseQueue = this.runtimeState.nodes.database.queue.length;
-    this.updateServerState(
-      0,
-      this.runtimeState.nodes.serverA.queue.length,
-      this.runtimeState.nodes.serverA.active.length,
-    );
-    this.updateServerState(
-      1,
-      this.runtimeState.nodes.serverB.queue.length,
-      this.runtimeState.nodes.serverB.active.length,
-    );
-    this.updateDatabaseState(
-      this.runtimeState.nodes.database.queue.length,
-      this.runtimeState.nodes.database.active.length,
-    );
-    this.emitProgress();
+  update(time: number, delta: number): void {
+    if (this.isWaveRunning) {
+      const store = useGameStore.getState();
+      store.stepSimulation(delta);
+      const nextState = useGameStore.getState().runtimeState;
+      if (!nextState) {
+        this.isWaveRunning = false;
+        this.runtimeState = null;
+        return;
+      }
+      this.runtimeState = nextState;
+      this.presentRuntimeState(nextState);
+      this.syncPacketPositions(nextState);
 
-    if (isRuntimeWaveSettled(this.runtimeState)) {
-      const result = buildWaveResultFromRuntime(this.runtimeState);
-    this.runtimeTickTimer?.remove(false);
-    this.runtimeTickTimer = null;
-      this.isWaveRunning = false;
-      this.runtimeState = null;
-      gameEvents.emit(GAME_EVENTS.WAVE_COMPLETE, { result });
+      this.updateServerState(
+        0,
+        nextState.nodes.serverA.queue.length,
+        nextState.nodes.serverA.active.length,
+      );
+      this.updateServerState(
+        1,
+        nextState.nodes.serverB.queue.length,
+        nextState.nodes.serverB.active.length,
+      );
+      this.updateDatabaseState(
+        nextState.nodes.database.queue.length,
+        nextState.nodes.database.active.length,
+      );
     }
+  }
+
+  private syncPacketPositions(state: RuntimeSimulationState): void {
+    for (const packet of state.packets) {
+      const view = this.requestViews.get(packet.id);
+      if (!view) continue;
+
+      if (
+        packet.phase === "toServer" ||
+        packet.phase === "toDatabase" ||
+        packet.phase === "toExit"
+      ) {
+        const progressRatio = Phaser.Math.Clamp(
+          packet.pathProgressMs / Math.max(1, packet.pathDurationMs),
+          0,
+          1,
+        );
+        const coords = packet.path.map((nodeId) => this.getNodePosition(nodeId));
+        if (coords.length >= 2) {
+          const pos = this.getPositionOnPath(coords, progressRatio);
+          view.setPosition(pos.x, pos.y);
+          view.setScale(1);
+          view.setAlpha(1);
+        }
+      } else if (
+        packet.phase === "queuedAtServer" ||
+        packet.phase === "queuedAtDatabase"
+      ) {
+        const nodeId = packet.phase === "queuedAtServer" ? packet.serverNodeId : "database";
+        const node = this.getNodePosition(nodeId);
+        view.setPosition(node.x, node.y + 44);
+        view.setScale(0.72);
+        view.setAlpha(1);
+      } else if (
+        packet.phase === "processingServer" ||
+        packet.phase === "processingDatabase"
+      ) {
+        const nodeId = packet.phase === "processingServer" ? packet.serverNodeId : "database";
+        const node = this.getNodePosition(nodeId);
+        view.setPosition(node.x, node.y);
+        view.setScale(0.35);
+        view.setAlpha(0.5);
+      }
+    }
+  }
+
+  private getPositionOnPath(points: Phaser.Math.Vector2[], ratio: number): Phaser.Math.Vector2 {
+    if (points.length < 2) return points[0] ?? new Phaser.Math.Vector2();
+    let totalLen = 0;
+    const lengths: number[] = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const len = Phaser.Math.Distance.BetweenPoints(points[i], points[i+1]);
+      lengths.push(len);
+      totalLen += len;
+    }
+    if (totalLen === 0) return points[0];
+
+    const targetLen = totalLen * ratio;
+    let accumulated = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      if (accumulated + lengths[i] >= targetLen) {
+        const segRatio = (targetLen - accumulated) / lengths[i];
+        const x = Phaser.Math.Interpolation.Linear([points[i].x, points[i+1].x], segRatio);
+        const y = Phaser.Math.Interpolation.Linear([points[i].y, points[i+1].y], segRatio);
+        return new Phaser.Math.Vector2(x, y);
+      }
+      accumulated += lengths[i];
+    }
+    return points[points.length - 1];
   }
 
   private presentRuntimeState(state: RuntimeSimulationState): void {
@@ -2046,38 +2176,21 @@ export class ArchitectureScene extends Phaser.Scene {
       const previousPhase = this.runtimePacketPhases.get(packet.id);
       if (!previousPhase) {
         this.spawnRequest(packet.id, packet.operation);
-        this.routeRequest(packet.id, packet.serverNodeId === "serverA" ? 0 : 1);
       }
       if (packet.phase === previousPhase) {
         continue;
       }
-      const serverId = packet.serverNodeId === "serverA" ? 0 : 1;
-      if (packet.phase === "queuedAtServer") {
-        this.queueRequest(
-          packet.id,
-          serverId,
-          state.nodes[packet.serverNodeId].queue.length,
-        );
-      } else if (packet.phase === "processingServer") {
-        this.processRequest(packet.id, serverId);
-      } else if (packet.phase === "toDatabase") {
-        this.routeToDatabase(packet.id);
-      } else if (packet.phase === "queuedAtDatabase") {
-        this.queueAtDatabase(
-          packet.id,
-          state.nodes.database.queue.length,
-        );
-      } else if (packet.phase === "processingDatabase") {
-        this.processAtDatabase(packet.id);
-      } else if (packet.phase === "toExit") {
-        this.markDatabaseComplete(packet.id);
-        this.returnResponse(packet.id, serverId);
-      } else if (packet.phase === "completed") {
-        this.completeRequest(packet.id);
-      } else if (packet.phase === "dropped") {
+      
+      if (packet.phase === "dropped") {
+        const request = this.requestViews.get(packet.id);
+        if (request) {
+          this.playParticleBurst(request.x, request.y, 0xe86d7e, 12);
+        }
         this.failRequest(packet.id, "DROP");
       } else if (packet.phase === "timedOut") {
         this.failRequest(packet.id, "TIMEOUT");
+      } else if (packet.phase === "completed") {
+        this.completeRequest(packet.id);
       }
       this.runtimePacketPhases.set(packet.id, packet.phase);
     }

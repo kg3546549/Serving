@@ -24,6 +24,14 @@ import {
   validateArchitectureConnections,
   validateNewConnection,
 } from "../simulation/trafficSimulation";
+import {
+  createRuntimeSimulationState,
+  stepRuntimeSimulation,
+  applyRuntimeArchitectureMutation,
+  isRuntimeWaveSettled,
+  buildWaveResultFromRuntime,
+  type RuntimeSimulationState,
+} from "../simulation/runtimeEngine";
 
 export type GamePhase =
   | "menu"
@@ -95,6 +103,10 @@ interface GameState {
   ) => void;
   clearConnections: () => void;
   resetCampaign: () => void;
+  runtimeState: RuntimeSimulationState | null;
+  stepSimulation: (deltaMs: number) => void;
+  equipModule: (nodeId: ArchitectureNodeId, instanceId: string) => void;
+  unequipModule: (nodeId: ArchitectureNodeId, moduleType: BuildSystemType) => void;
 }
 
 export const INVENTORY_CAPACITY = 8;
@@ -349,8 +361,14 @@ function calculatePerformance(
   const loadBalancerScale = loadBalancerItem
     ? getItemScale(loadBalancerItem)
     : 1;
-  const has = (type: BuildSystemType) =>
-    owned.some((item) => item.type === type);
+
+  // 장착된 모듈 검증 헬퍼
+  const hasModuleOnServer = (type: BuildSystemType) =>
+    serverItems.some((item) => item.modules?.includes(type));
+  
+  const hasModuleOnDatabase = (type: BuildSystemType) =>
+    databaseItem?.modules?.includes(type) ?? false;
+
   const countAugment = (augment: AugmentType) =>
     owned.filter((item) => item.augment === augment).length;
 
@@ -361,8 +379,8 @@ function calculatePerformance(
     serverQueueCapacity:
       6 +
       countAugment("serverRam") * 4 +
-      (has("sqs") ? 3 : 0) +
-      (has("kafka") ? 5 : 0),
+      (hasModuleOnServer("sqs") ? 3 : 0) +
+      (hasModuleOnServer("kafka") ? 5 : 0),
     serverProcessingMultiplier: Math.max(
       0.32,
       (1 / maxServerScale) *
@@ -372,19 +390,19 @@ function calculatePerformance(
     databaseConcurrency:
       Math.max(2, Math.round(2 * databaseScale)) +
       countAugment("dbSharding") * 2 +
-      (has("rdsReplica") ? 1 : 0),
+      (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 1 : 0),
     databaseQueueCapacity:
       8 +
       countAugment("dbStorage") * 6 +
-      (has("kafka") ? 4 : 0) +
-      (has("s3") ? 4 : 0),
+      (hasModuleOnServer("kafka") || hasModuleOnDatabase("kafka") ? 4 : 0) +
+      (hasModuleOnDatabase("s3") ? 4 : 0),
     databaseProcessingMultiplier: Math.max(
       0.24,
       (1 / databaseScale) *
         Math.pow(0.68, countAugment("dbQuery")) *
         Math.pow(0.48, countAugment("dax")) *
-        (has("redis") ? 0.72 : 1) *
-        (has("rdsReplica") ? 0.86 : 1),
+        (hasModuleOnDatabase("redis") ? 0.72 : 1) *
+        (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 0.86 : 1),
     ),
     responseMultiplier: Math.max(
       0.45,
@@ -554,6 +572,7 @@ export const useGameStore = create<GameState>((set) => ({
   architecture: createInitialArchitecture(),
   liveMetrics: initialLiveMetrics(),
   lastResult: null,
+  runtimeState: null,
 
   startMission: () =>
     set({
@@ -565,10 +584,15 @@ export const useGameStore = create<GameState>((set) => ({
   setWorldReady: (worldReady) => set({ worldReady }),
 
   beginWave: () =>
-    set({
-      phase: "running",
-      liveMetrics: initialLiveMetrics(),
-      lastResult: null,
+    set((state) => {
+      const wave = STAGE_ONE_WAVES[state.waveIndex];
+      const runtimeState = createRuntimeSimulationState(state.architecture, wave);
+      return {
+        phase: "running",
+        liveMetrics: initialLiveMetrics(),
+        lastResult: null,
+        runtimeState,
+      };
     }),
 
   updateWaveProgress: (liveMetrics) => set({ liveMetrics }),
@@ -824,11 +848,20 @@ export const useGameStore = create<GameState>((set) => ({
       }
       nextArchitecture.boardSlots[nodeId as DeployableRole] = instanceId;
       nextArchitecture.nodePositions[nodeId] = position;
+      
+      const normalized = normalizeArchitecture(
+        nextArchitecture,
+        state.inventory,
+      );
+      
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, normalized);
+      }
+
       return {
-        architecture: normalizeArchitecture(
-          nextArchitecture,
-          state.inventory,
-        ),
+        architecture: normalized,
+        runtimeState: nextRuntime,
       };
     }),
 
@@ -854,7 +887,16 @@ export const useGameStore = create<GameState>((set) => ({
       if (!validateArchitectureConnections(architecture).valid) {
         return state;
       }
-      return { architecture };
+      
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, architecture);
+      }
+
+      return {
+        architecture,
+        runtimeState: nextRuntime,
+      };
     }),
 
   toggleConnection: (from, to) =>
@@ -878,19 +920,27 @@ export const useGameStore = create<GameState>((set) => ({
       ) {
         return state;
       }
+      const nextArchitecture = {
+        ...state.architecture,
+        connections: exists
+          ? state.architecture.connections.filter(
+              (connection) =>
+                !(
+                  (connection.from === from && connection.to === to) ||
+                  (connection.from === to && connection.to === from)
+                ),
+            )
+          : [...state.architecture.connections, { from, to }],
+      };
+
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, nextArchitecture);
+      }
+
       return {
-        architecture: {
-          ...state.architecture,
-          connections: exists
-            ? state.architecture.connections.filter(
-                (connection) =>
-                  !(
-                    (connection.from === from && connection.to === to) ||
-                    (connection.from === to && connection.to === from)
-                  ),
-              )
-            : [...state.architecture.connections, { from, to }],
-        },
+        architecture: nextArchitecture,
+        runtimeState: nextRuntime,
       };
     }),
 
@@ -914,5 +964,154 @@ export const useGameStore = create<GameState>((set) => ({
       emergencyMaintenanceCharges: 0,
       liveMetrics: initialLiveMetrics(),
       lastResult: null,
+      runtimeState: null,
+    }),
+
+  stepSimulation: (deltaMs) =>
+    set((state) => {
+      if (!state.runtimeState || state.phase !== "running") {
+        return state;
+      }
+      const nextRuntime = stepRuntimeSimulation(state.runtimeState, deltaMs);
+      
+      const liveMetrics: LiveWaveMetrics = {
+        completed: nextRuntime.metrics.completed,
+        failed: nextRuntime.metrics.dropped + nextRuntime.metrics.timedOut,
+        queueByServer: [
+          nextRuntime.nodes.serverA.queue.length,
+          nextRuntime.nodes.serverB.queue.length,
+        ],
+        databaseQueue: nextRuntime.nodes.database.queue.length,
+      };
+
+      const prevCompleted = state.runtimeState.metrics.completed;
+      const nextCompleted = nextRuntime.metrics.completed;
+      const diffCompleted = nextCompleted - prevCompleted;
+      
+      const prevFailed = state.runtimeState.metrics.dropped + state.runtimeState.metrics.timedOut;
+      const nextFailed = nextRuntime.metrics.dropped + nextRuntime.metrics.timedOut;
+      const diffFailed = nextFailed - prevFailed;
+
+      const hpDamage = diffFailed * 2;
+      const coinsGained = diffCompleted * 2;
+
+      const serviceHp = Math.max(0, state.serviceHp - hpDamage);
+      const coins = state.coins + coinsGained;
+
+      let phase: GamePhase = state.phase;
+      let lastResult = state.lastResult;
+      
+      if (serviceHp <= 0) {
+        phase = "defeated";
+        lastResult = buildWaveResultFromRuntime(nextRuntime);
+      } else if (isRuntimeWaveSettled(nextRuntime)) {
+        const result = buildWaveResultFromRuntime(nextRuntime);
+        const isFinalWave = state.waveIndex === STAGE_ONE_WAVES.length - 1;
+        
+        const interest = Math.min(5, Math.floor(coins / 10));
+        phase = isFinalWave ? "cleared" : "result";
+        lastResult = result;
+        return {
+          runtimeState: null,
+          phase,
+          coins: coins + (result.metrics.passed ? 35 : 15) + interest,
+          serviceHp,
+          lastResult,
+          liveMetrics,
+        };
+      }
+
+      return {
+        runtimeState: nextRuntime,
+        liveMetrics,
+        serviceHp,
+        coins,
+        phase,
+        lastResult,
+      };
+    }),
+
+  equipModule: (nodeId, instanceId) =>
+    set((state) => {
+      const itemIndex = state.inventory.findIndex((item) => item?.id === instanceId);
+      if (itemIndex < 0) return state;
+      const moduleItem = state.inventory[itemIndex]!;
+      const moduleType = moduleItem.type;
+
+      const isModule = ["sqs", "kafka", "redis", "s3", "waf", "cognito", "rdsReplica", "documentDb"].includes(moduleType);
+      if (!isModule) return state;
+
+      const targetInstanceId = state.architecture.boardSlots[nodeId as DeployableRole];
+      if (!targetInstanceId) return state;
+
+      const nextInventory = [...state.inventory];
+      nextInventory[itemIndex] = null;
+
+      const targetIndex = nextInventory.findIndex((item) => item?.id === targetInstanceId);
+      if (targetIndex >= 0) {
+        const targetNode = nextInventory[targetIndex]!;
+        const currentModules = targetNode.modules ?? [];
+        if (currentModules.length >= 2) {
+          return state;
+        }
+        nextInventory[targetIndex] = {
+          ...targetNode,
+          modules: [...currentModules, moduleType],
+        };
+      }
+
+      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory);
+      
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, nextArchitecture);
+      }
+
+      return {
+        inventory: nextInventory,
+        architecture: nextArchitecture,
+        runtimeState: nextRuntime,
+      };
+    }),
+
+  unequipModule: (nodeId, moduleType) =>
+    set((state) => {
+      const targetInstanceId = state.architecture.boardSlots[nodeId as DeployableRole];
+      if (!targetInstanceId) return state;
+
+      const emptyIndex = state.inventory.findIndex((item) => item === null);
+      if (emptyIndex < 0) return state;
+
+      const nextInventory = [...state.inventory];
+      const targetIndex = nextInventory.findIndex((item) => item?.id === targetInstanceId);
+      if (targetIndex < 0) return state;
+
+      const targetNode = nextInventory[targetIndex]!;
+      const currentModules = targetNode.modules ?? [];
+      if (!currentModules.includes(moduleType)) return state;
+
+      nextInventory[targetIndex] = {
+        ...targetNode,
+        modules: currentModules.filter((m) => m !== moduleType),
+      };
+
+      nextInventory[emptyIndex] = {
+        id: uuidv4(),
+        type: moduleType,
+        starLevel: 1,
+      };
+
+      const nextArchitecture = normalizeArchitecture(state.architecture, nextInventory);
+      
+      let nextRuntime = state.runtimeState;
+      if (nextRuntime && state.phase === "running") {
+        nextRuntime = applyRuntimeArchitectureMutation(nextRuntime, nextArchitecture);
+      }
+
+      return {
+        inventory: nextInventory,
+        architecture: nextArchitecture,
+        runtimeState: nextRuntime,
+      };
     }),
 }));

@@ -64,6 +64,7 @@ export interface NodeInstance {
   type: BuildSystemType;
   starLevel: 1 | 2 | 3;
   augment?: AugmentType;
+  modules?: BuildSystemType[];
 }
 
 export interface ArchitecturePerformance {
