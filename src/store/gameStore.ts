@@ -70,7 +70,7 @@ interface GameState {
   lastResult: WaveSimulationResult | null;
   startMission: () => void;
   setWorldReady: (ready: boolean) => void;
-  beginWave: (result: WaveSimulationResult) => void;
+  beginWave: () => void;
   updateWaveProgress: (metrics: LiveWaveMetrics) => void;
   completeWave: (result: WaveSimulationResult) => void;
   continueAfterResult: () => void;
@@ -564,11 +564,11 @@ export const useGameStore = create<GameState>((set) => ({
 
   setWorldReady: (worldReady) => set({ worldReady }),
 
-  beginWave: (lastResult) =>
+  beginWave: () =>
     set({
       phase: "running",
       liveMetrics: initialLiveMetrics(),
-      lastResult,
+      lastResult: null,
     }),
 
   updateWaveProgress: (liveMetrics) => set({ liveMetrics }),
@@ -625,7 +625,7 @@ export const useGameStore = create<GameState>((set) => ({
   rollShop: (free = false) =>
     set((state) => {
       if (
-        state.phase !== "prepare" ||
+        (state.phase !== "prepare" && state.phase !== "running") ||
         (!free && state.coins < 2)
       ) {
         return state;
@@ -640,7 +640,7 @@ export const useGameStore = create<GameState>((set) => ({
     set((state) => {
       const levelUpCost = getLevelUpCost(state.playerLevel);
       if (
-        state.phase !== "prepare" ||
+        (state.phase !== "prepare" && state.phase !== "running") ||
         state.coins < levelUpCost ||
         state.playerLevel >= 10
       ) {
@@ -665,7 +665,7 @@ export const useGameStore = create<GameState>((set) => ({
 
   buyShopItem: (shopIndex) =>
     set((state) => {
-      if (state.phase !== "prepare") {
+      if (state.phase !== "prepare" && state.phase !== "running") {
         return state;
       }
       const shopItem = state.shopItems[shopIndex];
@@ -793,7 +793,7 @@ export const useGameStore = create<GameState>((set) => ({
   placeNode: (nodeId, position, instanceId) =>
     set((state) => {
       if (
-        state.phase !== "prepare" ||
+        (state.phase !== "prepare" && state.phase !== "running") ||
         nodeId === "entry" ||
         nodeId === "exit" ||
         !instanceId ||
@@ -835,7 +835,7 @@ export const useGameStore = create<GameState>((set) => ({
   moveNode: (nodeId, position) =>
     set((state) => {
       if (
-        state.phase !== "prepare" ||
+        (state.phase !== "prepare" && state.phase !== "running") ||
         nodeId === "entry" ||
         nodeId === "exit" ||
         state.architecture.nodePositions[nodeId] === undefined ||
@@ -860,7 +860,7 @@ export const useGameStore = create<GameState>((set) => ({
   toggleConnection: (from, to) =>
     set((state) => {
       if (
-        state.phase !== "prepare" ||
+        (state.phase !== "prepare" && state.phase !== "running") ||
         from === to ||
         !state.architecture.nodePositions[from] ||
         !state.architecture.nodePositions[to]

@@ -56,6 +56,7 @@ export function GameHost({
     if (!hostRef.current) {
       return;
     }
+    const hostElement = hostRef.current;
 
     const unsubscribeReady = gameEvents.on<void>(
       GAME_EVENTS.SCENE_READY,
@@ -93,20 +94,20 @@ export function GameHost({
 
     const game = new Phaser.Game(({
       type: Phaser.WEBGL,
-      width: 1200,
-      height: 720,
+      width: hostElement.clientWidth || 1200,
+      height: hostElement.clientHeight || 720,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
-      parent: hostRef.current,
+      parent: hostElement,
       backgroundColor: "#f3f8ff",
       disableContextMenu: true,
       scene: [ArchitectureScene],
       antialias: true,
       transparent: false,
       scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1200,
-        height: 720,
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.NO_CENTER,
+        width: hostElement.clientWidth || 1200,
+        height: hostElement.clientHeight || 720,
       },
       render: {
         pixelArt: false,
@@ -114,7 +115,19 @@ export function GameHost({
       },
     }) as Phaser.Types.Core.GameConfig & { resolution: number });
 
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      const width = Math.max(1, Math.round(entry.contentRect.width));
+      const height = Math.max(1, Math.round(entry.contentRect.height));
+      game.scale.resize(width, height);
+    });
+    resizeObserver.observe(hostElement);
+
     return () => {
+      resizeObserver.disconnect();
       unsubscribeReady();
       unsubscribeProgress();
       unsubscribeComplete();

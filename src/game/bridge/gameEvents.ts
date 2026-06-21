@@ -4,6 +4,7 @@ import type {
   GridPosition,
   WaveSimulationResult,
 } from "../../simulation/trafficSimulation";
+import type { WaveDefinition } from "../../campaign/campaignData";
 import type { LiveWaveMetrics } from "../../store/gameStore";
 
 export const GAME_EVENTS = {
@@ -36,6 +37,11 @@ export interface WaveCompletePayload {
 
 export interface WaveProgressPayload {
   metrics: LiveWaveMetrics;
+}
+
+export interface StartWavePayload {
+  architecture: ArchitectureConfig;
+  wave: WaveDefinition;
 }
 
 export interface ArchitecturePayload {

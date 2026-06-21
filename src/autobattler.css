@@ -1,22 +1,24 @@
 .infra-game {
-  --ui-bg: #eef5fc;
-  --ui-bg-strong: #f7fbff;
-  --ui-panel: rgba(255, 255, 255, 0.94);
-  --ui-panel-solid: #ffffff;
-  --ui-line: #d8e3ef;
-  --ui-line-strong: #bfd0e4;
-  --ui-text: #2f4466;
-  --ui-muted: #7a8ca7;
-  --ui-blue: #2478df;
-  --ui-blue-soft: #eaf4ff;
-  --ui-purple: #7655cf;
-  --ui-purple-soft: #f2ecff;
-  --ui-teal: #1da4a0;
-  --ui-teal-soft: #e7f8f7;
-  --ui-green: #34b56f;
-  --ui-gold: #e8a11f;
-  --ui-red: #ef5c70;
-  --ui-orange: #ea8f29;
+  --ui-bg: oklch(0.97 0.012 251);
+  --ui-bg-strong: oklch(0.986 0.008 251);
+  --ui-panel: color-mix(in oklab, white 92%, var(--ui-bg) 8%);
+  --ui-panel-solid: oklch(0.995 0.002 255);
+  --ui-line: oklch(0.9 0.015 250);
+  --ui-line-strong: oklch(0.83 0.025 252);
+  --ui-text: oklch(0.39 0.045 255);
+  --ui-muted: oklch(0.63 0.025 252);
+  --ui-blue: oklch(0.59 0.18 254);
+  --ui-blue-strong: oklch(0.52 0.19 257);
+  --ui-blue-soft: oklch(0.95 0.03 252);
+  --ui-purple: oklch(0.6 0.18 299);
+  --ui-purple-strong: oklch(0.53 0.19 298);
+  --ui-purple-soft: oklch(0.95 0.025 300);
+  --ui-teal: oklch(0.67 0.12 196);
+  --ui-teal-soft: oklch(0.95 0.02 190);
+  --ui-green: oklch(0.69 0.16 151);
+  --ui-gold: oklch(0.74 0.14 79);
+  --ui-red: oklch(0.65 0.2 20);
+  --ui-orange: oklch(0.7 0.16 52);
   --ui-shadow: 0 10px 26px rgba(72, 102, 146, 0.12);
   position: fixed;
   inset: 0;
@@ -26,8 +28,8 @@
   padding: 18px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 18%, rgba(111, 155, 227, 0.18), transparent 30%),
-    linear-gradient(180deg, #f6faff 0%, #eef5fc 52%, #edf3fb 100%);
+    radial-gradient(circle at 50% 18%, color-mix(in oklab, var(--ui-blue) 18%, transparent), transparent 30%),
+    linear-gradient(180deg, var(--ui-bg-strong) 0%, var(--ui-bg) 52%, oklch(0.955 0.013 248) 100%);
   color: var(--ui-text);
   font-family: Pretendard, "Noto Sans KR", "Segoe UI", sans-serif;
 }
@@ -92,7 +94,7 @@
   gap: 2px;
   border: 0;
   border-radius: 18px 0 0 18px;
-  background: linear-gradient(180deg, #7a63d8, #674fbe);
+  background: linear-gradient(180deg, var(--ui-purple), var(--ui-purple-strong));
   box-shadow: none;
   color: #fff;
   text-align: center;
@@ -162,8 +164,8 @@
   place-items: center;
   border: 1px solid var(--ui-line);
   border-radius: 50%;
-  background: #f8fbff;
-  color: #567493;
+  background: var(--ui-panel-solid);
+  color: var(--ui-muted);
   cursor: pointer;
   font-size: 11px;
   font-weight: 900;
@@ -299,6 +301,11 @@
 .board-stage-layout {
   display: grid;
   height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.board-stage-layout--details {
   grid-template-columns: minmax(0, 1fr) 286px;
   gap: 16px;
 }
@@ -326,6 +333,10 @@
 .infra-game .game-canvas canvas {
   width: 100%;
   height: 100%;
+}
+
+.infra-game .game-canvas canvas {
+  display: block;
 }
 
 .infra-game .board-camera-help {
@@ -395,7 +406,7 @@
   height: 34px;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(180deg, #2f80e4, #215eb5);
+  background: linear-gradient(180deg, var(--ui-blue), var(--ui-blue-strong));
   color: #fff;
   font-size: 15px;
   font-weight: 900;
@@ -427,22 +438,27 @@
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #dcdaf6;
+  background: color-mix(in oklab, var(--ui-purple) 22%, white 78%);
 }
 
 .infra-game .auto-wave-track i {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #246fd3, #2cb7d8, #8f8ce8);
+  background: linear-gradient(
+    90deg,
+    var(--ui-blue),
+    color-mix(in oklab, var(--ui-teal) 70%, white 30%),
+    color-mix(in oklab, var(--ui-purple) 70%, white 30%)
+  );
 }
 
 .emergency-maintenance-button {
   padding: 8px 13px;
-  border: 1px solid #efcbd0;
+  border: 1px solid color-mix(in oklab, var(--ui-red) 24%, white 76%);
   border-radius: 8px;
-  background: #fff4f6;
-  color: #cb4b5e;
+  background: color-mix(in oklab, var(--ui-red) 10%, white 90%);
+  color: color-mix(in oklab, var(--ui-red) 80%, black 20%);
   cursor: pointer;
   font-size: 11px;
   font-weight: 850;
@@ -605,7 +621,7 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(180deg, #2a82e8, #1567c5);
+  background: linear-gradient(180deg, var(--ui-blue), var(--ui-blue-strong));
 }
 
 .inventory-card-icon svg,
@@ -907,12 +923,12 @@
 }
 
 .shop-offer--passive {
-  border-color: #e1d5f6;
-  background: #fcf9ff;
+  border-color: color-mix(in oklab, var(--ui-purple) 22%, white 78%);
+  background: color-mix(in oklab, var(--ui-purple) 6%, white 94%);
 }
 
 .shop-offer--passive .shop-offer-icon {
-  background: linear-gradient(180deg, #8a69d8, #7352c5);
+  background: linear-gradient(180deg, var(--ui-purple), var(--ui-purple-strong));
 }
 
 .shop-offer--empty {
@@ -923,7 +939,7 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(180deg, #2a82e8, #1567c5);
+  background: linear-gradient(180deg, var(--ui-blue), var(--ui-blue-strong));
 }
 
 .shop-offer-copy {
@@ -983,10 +999,10 @@
 .route-reset-button {
   width: 100%;
   padding: 10px;
-  border: 1px solid #c8d7e8;
+  border: 1px solid var(--ui-line-strong);
   border-radius: 12px;
-  background: #f8fbff;
-  color: #45617f;
+  background: var(--ui-panel-solid);
+  color: color-mix(in oklab, var(--ui-text) 86%, white 14%);
   cursor: pointer;
   font-size: 12px;
   font-weight: 800;
@@ -1180,9 +1196,9 @@
 .resource-sell-button,
 .soft-primary {
   padding: 10px 12px;
-  border: 1px solid #78afea;
+  border: 1px solid color-mix(in oklab, var(--ui-blue) 45%, white 55%);
   border-radius: 12px;
-  background: linear-gradient(180deg, #2980e5, #1867c4);
+  background: linear-gradient(180deg, var(--ui-blue), var(--ui-blue-strong));
   color: #fff;
   cursor: pointer;
   font-weight: 850;

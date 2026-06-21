@@ -7,6 +7,15 @@ import type {
   WaveSimulationResult,
 } from "../simulation/trafficSimulation";
 import {
+  applyRuntimeArchitectureMutation,
+  buildWaveResultFromRuntime,
+  createRuntimeSimulationState,
+  isRuntimeWaveSettled,
+  stepRuntimeSimulation,
+  type RuntimePacket,
+  type RuntimeSimulationState,
+} from "../simulation/runtimeEngine";
+import {
   DEFAULT_NODE_POSITIONS,
   getBoardBounds,
   getBoardTier,
@@ -31,6 +40,7 @@ import {
   type CameraCommand,
   type InventoryDropPayload,
   type InventorySelectPayload,
+  type StartWavePayload,
 } from "./bridge/gameEvents";
 import { resolveNodeGesture } from "./nodeGesture";
 
@@ -62,6 +72,7 @@ interface BoardPanGesture {
   pointerY: number;
   scrollX: number;
   scrollY: number;
+  dragged: boolean;
 }
 
 const WIDTH = 1200;
@@ -146,6 +157,9 @@ export class ArchitectureScene extends Phaser.Scene {
   private moveTargetPosition: GridPosition | null = null;
   private activeTimers: Phaser.Time.TimerEvent[] = [];
   private isWaveRunning = false;
+  private runtimeState: RuntimeSimulationState | null = null;
+  private runtimeTickTimer: Phaser.Time.TimerEvent | null = null;
+  private runtimePacketPhases = new Map<number, RuntimePacket["phase"]>();
   private progress: LiveWaveMetrics = {
     completed: 0,
     failed: 0,
@@ -186,9 +200,10 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private bindGameEvents(): void {
     this.unsubscribers.push(
-      gameEvents.on<WaveSimulationResult>(
+      gameEvents.on<StartWavePayload>(
         GAME_EVENTS.WAVE_REQUEST,
-        (result) => void this.playWave(result),
+        ({ wave, architecture }) =>
+          void this.startRealtimeWave(wave, architecture),
       ),
       gameEvents.on<ArchitecturePayload>(
         GAME_EVENTS.CONFIGURE_ARCHITECTURE,
@@ -213,6 +228,9 @@ export class ArchitectureScene extends Phaser.Scene {
               ),
           );
           this.architecture = architecture;
+          if (this.runtimeState && this.isWaveRunning) {
+            applyRuntimeArchitectureMutation(this.runtimeState, architecture);
+          }
           this.applyArchitecture(false);
           if (placedNodeId) {
             const node = this.nodes.get(placedNodeId);
@@ -335,6 +353,7 @@ export class ArchitectureScene extends Phaser.Scene {
         pointerY: pointer.y,
         scrollX: this.cameras.main.scrollX,
         scrollY: this.cameras.main.scrollY,
+        dragged: false,
       };
       this.input.setDefaultCursor("grabbing");
     });
@@ -541,45 +560,45 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private createEntryNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
-    card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -25, 66, 66, 0x1b79df);
-    tile.setStrokeStyle(2, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
+    const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
+    halo.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, 0, 58, 58, 0x1b79df, 1);
+    tile.setStrokeStyle(2, 0xffffff, 0.95);
     const icon = this.add.graphics();
     icon.lineStyle(4, 0xffffff, 1);
-    icon.strokeCircle(-10, -29, 7);
-    icon.strokeCircle(10, -29, 7);
+    icon.strokeCircle(-10, -4, 7);
+    icon.strokeCircle(10, -4, 7);
     icon.beginPath();
-    icon.arc(-10, -3, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.arc(-10, 22, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
     icon.strokePath();
     icon.beginPath();
-    icon.arc(10, -3, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
+    icon.arc(10, 22, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
     icon.strokePath();
-    const label = this.createNodeLabel("Traffic Ingress", 0, 31);
-    const sub = this.createNodeSubLabel("FIXED", 0, 55);
-    const dot = this.createNodeStatusDot(35, 16);
-    container.add([shadow, card, tile, icon, label, sub, dot]);
+    const label = this.createNodeLabel("Traffic Ingress", 0, 54);
+    const sub = this.createNodeSubLabel("FIXED", 0, 74);
+    const dot = this.createNodeStatusDot(30, 24);
+    container.add([shadow, halo, tile, icon, label, sub, dot]);
     this.makeConnectable(container, "entry");
     return { id: "entry", container };
   }
 
   private createExitNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
-    card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -25, 66, 66, COLORS.purpleDark);
-    tile.setStrokeStyle(2, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
+    const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
+    halo.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, 0, 58, 58, COLORS.purpleDark, 1);
+    tile.setStrokeStyle(2, 0xffffff, 0.95);
     const icon = this.add.graphics();
     icon.lineStyle(5, 0xffffff, 1);
-    icon.strokeCircle(0, -22, 17);
-    icon.lineBetween(-8, -22, -1, -14);
-    icon.lineBetween(-1, -14, 11, -28);
-    const label = this.createNodeLabel("Response Egress", 0, 31);
-    const sub = this.createNodeSubLabel("FIXED", 0, 55);
-    const dot = this.createNodeStatusDot(35, 16);
-    container.add([shadow, card, tile, icon, label, sub, dot]);
+    icon.strokeCircle(0, 3, 17);
+    icon.lineBetween(-8, 3, -1, 11);
+    icon.lineBetween(-1, 11, 11, -3);
+    const label = this.createNodeLabel("Response Egress", 0, 54);
+    const sub = this.createNodeSubLabel("FIXED", 0, 74);
+    const dot = this.createNodeStatusDot(30, 24);
+    container.add([shadow, halo, tile, icon, label, sub, dot]);
     this.makeConnectable(container, "exit");
     return { id: "exit", container };
   }
@@ -591,20 +610,20 @@ export class ArchitectureScene extends Phaser.Scene {
   ): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
-    card.setStrokeStyle(2, 0xdbe6f2, 1);
+    const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
+    const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
+    halo.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x1b79df, 1);
-    body.fillRoundedRect(-33, -58, 66, 66, 14);
+    body.fillRoundedRect(-29, -29, 58, 58, 14);
     body.lineStyle(3, 0xffffff, 1);
-    body.strokeRoundedRect(-33, -58, 66, 66, 14);
-    body.strokeRect(-17, -42, 34, 27);
-    body.lineBetween(-12, -33, 12, -33);
-    body.lineBetween(-12, -25, 12, -25);
-    body.lineBetween(-12, -17, 12, -17);
+    body.strokeRoundedRect(-29, -29, 58, 58, 14);
+    body.strokeRect(-15, -13, 30, 24);
+    body.lineBetween(-10, -4, 10, -4);
+    body.lineBetween(-10, 4, 10, 4);
+    body.lineBetween(-10, 12, 10, 12);
     const stateText = this.add
-      .text(0, 44, "APP", {
+      .text(0, 54, "APP", {
         color: "#6e839f",
         fontFamily: "Pretendard",
         fontSize: "9px",
@@ -612,9 +631,9 @@ export class ArchitectureScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
-    const label = this.createNodeLabel(title, 0, 31);
+    const label = this.createNodeLabel(title, 0, 72);
     const queueText = this.add
-      .text(0, 54, "QUEUE 0", {
+      .text(0, 88, "QUEUE 0", {
         color: "#6e839f",
         fontFamily: "Pretendard",
         fontSize: "10px",
@@ -622,32 +641,32 @@ export class ArchitectureScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
-    const dot = this.createNodeStatusDot(35, 16);
-    container.add([pressure, shadow, card, body, label, stateText, queueText, dot]);
+    const dot = this.createNodeStatusDot(30, 24);
+    container.add([pressure, shadow, halo, body, stateText, label, queueText, dot]);
     this.makeConnectable(container, id);
     return { id, container, pressure, queueText, stateText };
   }
 
   private createLoadBalancerNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
-    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
-    card.setStrokeStyle(2, 0xdbe6f2, 1);
+    const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
+    const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
+    halo.setStrokeStyle(2, 0xdbe6f2, 1);
     const body = this.add.graphics();
     body.fillStyle(0x7258cb, 1);
-    body.fillRoundedRect(-33, -58, 66, 66, 14);
+    body.fillRoundedRect(-29, -29, 58, 58, 14);
     body.lineStyle(3, 0xffffff, 0.95);
-    body.strokeRoundedRect(-33, -58, 66, 66, 14);
+    body.strokeRoundedRect(-29, -29, 58, 58, 14);
     body.lineStyle(4, 0xffffff, 1);
-    body.strokeRect(-8, -33, 16, 16);
-    body.lineBetween(0, -49, 0, -33);
-    body.lineBetween(0, -17, 0, 1);
-    body.lineBetween(-24, -25, -8, -25);
-    body.lineBetween(8, -25, 24, -25);
-    const label = this.createNodeLabel("Load Balancer", 0, 31);
-    const sub = this.createNodeSubLabel("RR", 0, 55);
-    const dot = this.createNodeStatusDot(35, 16);
-    container.add([shadow, card, body, label, sub, dot]);
+    body.strokeRect(-8, -8, 16, 16);
+    body.lineBetween(0, -24, 0, -8);
+    body.lineBetween(0, 8, 0, 24);
+    body.lineBetween(-24, 0, -8, 0);
+    body.lineBetween(8, 0, 24, 0);
+    const label = this.createNodeLabel("Load Balancer", 0, 54);
+    const sub = this.createNodeSubLabel("RR", 0, 74);
+    const dot = this.createNodeStatusDot(30, 24);
+    container.add([shadow, halo, body, label, sub, dot]);
     this.makeConnectable(container, "loadBalancer");
     return { id: "loadBalancer", container };
   }
@@ -655,22 +674,22 @@ export class ArchitectureScene extends Phaser.Scene {
   private createDatabaseNode(position: Phaser.Math.Vector2): NodeView {
     const container = this.add.container(position.x, position.y).setDepth(6);
     const pressure = this.add.graphics();
-    const shadow = this.add.ellipse(0, 64, 108, 20, 0x5c7aa0, 0.12);
-    const card = this.add.rectangle(0, 10, 114, 122, 0xffffff);
-    card.setStrokeStyle(2, 0xdbe6f2, 1);
-    const tile = this.add.rectangle(0, -25, 66, 66, 0x1da4a0);
-    tile.setStrokeStyle(2, 0xffffff, 0.9);
+    const shadow = this.add.ellipse(0, 48, 86, 16, 0x5c7aa0, 0.12);
+    const halo = this.add.circle(0, 0, 40, 0xffffff, 0.92);
+    halo.setStrokeStyle(2, 0xdbe6f2, 1);
+    const tile = this.add.rectangle(0, 0, 58, 58, 0x1da4a0);
+    tile.setStrokeStyle(2, 0xffffff, 0.95);
     const database = this.add.graphics();
     database.fillStyle(0xffffff, 1);
-    database.fillEllipse(0, -37, 38, 12);
-    database.fillRect(-19, -37, 38, 33);
-    database.fillEllipse(0, -4, 38, 12);
+    database.fillEllipse(0, -12, 32, 10);
+    database.fillRect(-16, -12, 32, 28);
+    database.fillEllipse(0, 16, 32, 10);
     database.lineStyle(2, 0x1da4a0, 1);
-    database.strokeEllipse(0, -25, 38, 12);
-    database.strokeEllipse(0, -14, 38, 12);
-    const label = this.createNodeLabel("Primary DB", 0, 31);
+    database.strokeEllipse(0, 0, 32, 10);
+    database.strokeEllipse(0, 9, 32, 10);
+    const label = this.createNodeLabel("Primary DB", 0, 72);
     const stateText = this.add
-      .text(0, 44, "DB", {
+      .text(0, 54, "DB", {
         color: "#6e839f",
         fontFamily: "Pretendard",
         fontSize: "9px",
@@ -679,7 +698,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
     const queueText = this.add
-      .text(0, 54, "QUEUE 0", {
+      .text(0, 88, "QUEUE 0", {
         color: "#6e839f",
         fontFamily: "Pretendard",
         fontSize: "10px",
@@ -687,11 +706,11 @@ export class ArchitectureScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setResolution(TEXT_RESOLUTION);
-    const dot = this.createNodeStatusDot(35, 16);
+    const dot = this.createNodeStatusDot(30, 24);
     container.add([
       pressure,
       shadow,
-      card,
+      halo,
       tile,
       database,
       stateText,
@@ -718,7 +737,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(x, y, text, {
         color: "#274365",
         fontFamily: "Pretendard",
-        fontSize: "12px",
+        fontSize: "11px",
         fontStyle: "700",
       })
       .setOrigin(0.5)
@@ -734,7 +753,7 @@ export class ArchitectureScene extends Phaser.Scene {
       .text(x, y, text, {
         color: "#6d839f",
         fontFamily: "Pretendard",
-        fontSize: "11px",
+        fontSize: "10px",
         fontStyle: "700",
       })
       .setOrigin(0.5)
@@ -756,7 +775,7 @@ export class ArchitectureScene extends Phaser.Scene {
     container: Phaser.GameObjects.Container,
     nodeId: ArchitectureNodeId,
   ): void {
-    container.setSize(92, 92);
+    container.setSize(110, 112);
     container.setInteractive({ useHandCursor: true });
     container.on("pointerover", () => {
       if (!this.isWaveRunning) {
@@ -786,7 +805,6 @@ export class ArchitectureScene extends Phaser.Scene {
         (pointer.button === 0 ||
           pointer.button === 2 ||
           pointer.rightButtonDown()) &&
-        !this.isWaveRunning &&
         this.isNodeActive(nodeId)
       ) {
         const mode =
@@ -814,6 +832,14 @@ export class ArchitectureScene extends Phaser.Scene {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       if (this.boardPanGesture && pointer.isDown) {
         const camera = this.cameras.main;
+        if (
+          Math.hypot(
+            pointer.x - this.boardPanGesture.pointerX,
+            pointer.y - this.boardPanGesture.pointerY,
+          ) > 5
+        ) {
+          this.boardPanGesture.dragged = true;
+        }
         camera.scrollX =
           this.boardPanGesture.scrollX -
           (pointer.x - this.boardPanGesture.pointerX) / camera.zoom;
@@ -896,9 +922,33 @@ export class ArchitectureScene extends Phaser.Scene {
         return;
       }
       if (this.boardPanGesture) {
+        const panGesture = this.boardPanGesture;
         this.boardPanGesture = null;
         this.input.setDefaultCursor(this.isSpacePressed ? "grab" : "default");
         this.syncCameraMetadata();
+        if (
+          this.activePlacementNode &&
+          !panGesture.dragged &&
+          pointer.button === 0 &&
+          !this.isPointerOverNode(pointer.worldX, pointer.worldY)
+        ) {
+          const position = this.worldToGrid(pointer.worldX, pointer.worldY);
+          if (
+            position &&
+            isGridPositionAvailable(this.architecture, position) &&
+            !this.isOccupied(position)
+          ) {
+            this.requestPlacement(
+              this.activePlacementNode,
+              position,
+              true,
+              this.activePlacementInstanceId ?? undefined,
+            );
+          } else {
+            this.statusText.setText("현재 보드의 빈 위치에 놓아 주세요");
+            this.cameras.main.shake(100, 0.002);
+          }
+        }
         return;
       }
       if (
@@ -1176,9 +1226,6 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   private beginPlacement(nodeId: ArchitectureNodeId, instanceId?: string): void {
-    if (this.isWaveRunning) {
-      return;
-    }
     this.activePlacementNode = nodeId;
     this.activePlacementInstanceId = instanceId ?? null;
     this.statusText.setText("보드 안의 빈 위치에 장비를 드래그해 놓아 주세요");
@@ -1936,6 +1983,106 @@ export class ArchitectureScene extends Phaser.Scene {
     return new Phaser.Math.Vector2(position.column, position.row);
   }
 
+  private async startRealtimeWave(
+    wave: StartWavePayload["wave"],
+    architecture: ArchitectureConfig,
+  ): Promise<void> {
+    this.resetTraffic();
+    this.isWaveRunning = true;
+    this.cancelPlacement();
+    this.runtimeState = createRuntimeSimulationState(architecture, wave);
+    this.runtimePacketPhases.clear();
+    await this.showWaveCountdown(wave.id);
+    this.runtimeTickTimer?.remove(false);
+    this.runtimeTickTimer = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => this.stepRealtimeWave(),
+    });
+  }
+
+  private stepRealtimeWave(): void {
+    if (!this.runtimeState) {
+      return;
+    }
+    stepRuntimeSimulation(this.runtimeState, 100);
+    this.presentRuntimeState(this.runtimeState);
+    this.progress.completed = this.runtimeState.metrics.completed;
+    this.progress.failed =
+      this.runtimeState.metrics.dropped + this.runtimeState.metrics.timedOut;
+    this.progress.queueByServer = [
+      this.runtimeState.nodes.serverA.queue.length,
+      this.runtimeState.nodes.serverB.queue.length,
+    ];
+    this.progress.databaseQueue = this.runtimeState.nodes.database.queue.length;
+    this.updateServerState(
+      0,
+      this.runtimeState.nodes.serverA.queue.length,
+      this.runtimeState.nodes.serverA.active.length,
+    );
+    this.updateServerState(
+      1,
+      this.runtimeState.nodes.serverB.queue.length,
+      this.runtimeState.nodes.serverB.active.length,
+    );
+    this.updateDatabaseState(
+      this.runtimeState.nodes.database.queue.length,
+      this.runtimeState.nodes.database.active.length,
+    );
+    this.emitProgress();
+
+    if (isRuntimeWaveSettled(this.runtimeState)) {
+      const result = buildWaveResultFromRuntime(this.runtimeState);
+    this.runtimeTickTimer?.remove(false);
+    this.runtimeTickTimer = null;
+      this.isWaveRunning = false;
+      this.runtimeState = null;
+      gameEvents.emit(GAME_EVENTS.WAVE_COMPLETE, { result });
+    }
+  }
+
+  private presentRuntimeState(state: RuntimeSimulationState): void {
+    for (const packet of state.packets) {
+      const previousPhase = this.runtimePacketPhases.get(packet.id);
+      if (!previousPhase) {
+        this.spawnRequest(packet.id, packet.operation);
+        this.routeRequest(packet.id, packet.serverNodeId === "serverA" ? 0 : 1);
+      }
+      if (packet.phase === previousPhase) {
+        continue;
+      }
+      const serverId = packet.serverNodeId === "serverA" ? 0 : 1;
+      if (packet.phase === "queuedAtServer") {
+        this.queueRequest(
+          packet.id,
+          serverId,
+          state.nodes[packet.serverNodeId].queue.length,
+        );
+      } else if (packet.phase === "processingServer") {
+        this.processRequest(packet.id, serverId);
+      } else if (packet.phase === "toDatabase") {
+        this.routeToDatabase(packet.id);
+      } else if (packet.phase === "queuedAtDatabase") {
+        this.queueAtDatabase(
+          packet.id,
+          state.nodes.database.queue.length,
+        );
+      } else if (packet.phase === "processingDatabase") {
+        this.processAtDatabase(packet.id);
+      } else if (packet.phase === "toExit") {
+        this.markDatabaseComplete(packet.id);
+        this.returnResponse(packet.id, serverId);
+      } else if (packet.phase === "completed") {
+        this.completeRequest(packet.id);
+      } else if (packet.phase === "dropped") {
+        this.failRequest(packet.id, "DROP");
+      } else if (packet.phase === "timedOut") {
+        this.failRequest(packet.id, "TIMEOUT");
+      }
+      this.runtimePacketPhases.set(packet.id, packet.phase);
+    }
+  }
+
   private worldToGrid(x: number, y: number): GridPosition | null {
     const position = { column: x, row: y };
     return isGridPositionAvailable(this.architecture, position)
@@ -2030,6 +2177,10 @@ export class ArchitectureScene extends Phaser.Scene {
       timer.remove(false);
     }
     this.activeTimers = [];
+    this.runtimeTickTimer?.remove(false);
+    this.runtimeTickTimer = null;
+    this.runtimeState = null;
+    this.runtimePacketPhases.clear();
     for (const requestId of [...this.requestViews.keys()]) {
       this.destroyRequest(requestId);
     }

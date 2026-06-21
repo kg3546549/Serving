@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STACK//BREACH 발표자료</title>
+  
+  <!-- Google Fonts: Outfit & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* CSS 변수 선언 - 세련된 HSL 테크 테마 */
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      
+      --brand-blue: #3b82f6;
+      --brand-cyan: #06b6d4;
+      --brand-purple: #a855f7;
+      --brand-yellow: #eab308;
+      
+      --gradient-brand: linear-gradient(135deg, #3b82f6 0%, #06b6d4 50%, #a855f7 100%);
+      --glass-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      perspective: 1000px;
+    }
+
+    /* 프리젠테이션 컨테이너 - 16:9 강제 유지 */
+    .presentation-container {
+      width: 100%;
+      max-width: 1280px;
+      height: 100%;
+      max-height: 720px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      background-color: #0b0f19;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: var(--glass-glow);
+      overflow: hidden;
+    }
+
+    /* 슬라이드 베이스 */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 48px 64px;
+      opacity: 0;
+      transform: scale(0.95) translateZ(-50px);
+      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: scale(1) translateZ(0);
+      pointer-events: auto;
+    }
+
+    /* 배경 장식 선 */
+    .decor-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.007) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* 슬라이드 공통 요소 */
+    .slide-content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 12px;
+    }
+
+    .slide-title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #fff 0%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-meta {
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--brand-cyan);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* 슬라이드 1: 표지 전용 디자인 */
+    .cover-layout {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      height: 100%;
+    }
+
+    .cover-logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 72px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: var(--gradient-brand);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .cover-logo::after {
+      content: 'ARCHITECTURAL DEFENSE';
+      position: absolute;
+      bottom: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 0.4em;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .cover-subtitle {
+      font-size: 22px;
+      font-weight: 300;
+      color: var(--text-primary);
+      margin-top: 36px;
+      opacity: 0.9;
+    }
+
+    .cover-author {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 48px;
+      letter-spacing: 0.05em;
+    }
+
+    /* 슬라이드 2: 2열 모던 그리드 레이아웃 */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      flex-grow: 1;
+      align-items: stretch;
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(59, 130, 246, 0.3);
+      box-shadow: 0 4px 24px rgba(59, 130, 246, 0.15);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--brand-cyan);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-content {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      opacity: 0.85;
+    }
+
+    .highlight-text {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    /* 코어 루프 슬라이드 전용 */
+    .loop-timeline {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: 16px;
+      flex-grow: 1;
+    }
+
+    .timeline-node {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .node-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 40px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.05);
+      position: absolute;
+      top: 10px;
+      right: 15px;
+    }
+
+    .node-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--brand-purple);
+      margin-bottom: 12px;
+    }
+
+    .node-desc {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    /* 캐릭터 소개 카드 전용 */
+    .char-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      flex-grow: 1;
+    }
+
+    .char-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s ease;
+    }
+
+    .char-card:hover {
+      border-color: rgba(168, 85, 247, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .char-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .char-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .char-tag {
+      font-size: 11px;
+      color: var(--brand-yellow);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .char-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* 개발 로드맵 전용 */
+    .roadmap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-grow: 1;
+    }
+
+    .roadmap-item {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .roadmap-priority {
+      background: rgba(59, 130, 246, 0.1);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--brand-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .roadmap-priority.p2 {
+      background: rgba(168, 85, 247, 0.1);
+      color: var(--brand-purple);
+    }
+
+    .roadmap-priority.p3 {
+      background: rgba(6, 182, 212, 0.1);
+      color: var(--brand-cyan);
+    }
+
+    .roadmap-desc {
+      padding: 16px 24px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* 네비게이션 컨트롤러 - 브라우저 하단에 고정 */
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      padding: 8px 16px;
+      border-radius: 30px;
+      backdrop-filter: blur(8px);
+    }
+
+    .control-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.3s ease;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .page-indicator {
+      font-size: 13px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* 프린트(PDF 내보내기) 전용 CSS 설정 */
+    @media print {
+      @page {
+        size: 1280px 720px;
+        margin: 0;
+      }
+      body {
+        background-color: #0b0f19;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .presentation-container {
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+      }
+      .slide {
+        display: block !important;
+        position: relative !important;
+        page-break-after: always;
+        opacity: 1 !important;
+        transform: none !important;
+        pointer-events: auto !important;
+      }
+      .controls {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="presentation-container">
+    <div class="decor-grid"></div>
+    
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 1: 표지 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide active">
+      <div class="slide-content cover-layout">
+        <div class="cover-logo">STACK//BREACH</div>
+        <div class="cover-subtitle">서버 인프라 아키텍처 디펜스 게임 기획 및 개발 발표</div>
+        <div class="cover-author">기말고사 프로젝트 제출 자료 • 인프라 아키텍트 조</div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 2: 게임 소개 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">1. 프로젝트 소개 및 핵심 타깃</div>
+          <div class="slide-meta">OVERVIEW</div>
+        </div>
+        <div class="grid-2col">
+          <div class="glass-card">
+            <div class="card-title">🎮 신규 장르의 개척</div>
+            <div class="card-content">
+              본 게임은 서버 엔지니어링의 정수를 직관적인 퍼즐 디펜스 형식으로 녹여낸 <span class="highlight-text">아키텍처 디펜스 시뮬레이터</span>입니다. 플레이어는 서버 부하 모니터링 환경에서 가상 백엔드 자원을 다룹니다.
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="card-title">🎯 타깃 유저 및 매력 포인트</div>
+            <div class="card-content">
+              소프트웨어 공학 및 시스템 설계를 학습하는 <span class="highlight-text">학생과 예비 개발자</span>가 주 타깃입니다. 병목을 직접 설계하고 튜닝하는 지적 쾌감과 오토배틀러 상점 시스템을 조합한 깊이 있는 빌드 다양성이 핵심 재미입니다.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 3: 코어 루프 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">2. 핵심 플레이 흐름 (Core Loop)</div>
+          <div class="slide-meta">CORE PLAY FLOW</div>
+        </div>
+        <div class="loop-timeline">
+          <div class="timeline-node">
+            <div class="node-num">01</div>
+            <div class="node-title">인프라 장비 조달</div>
+            <div class="node-desc">상점에서 예산을 사용해 컴포넌트를 구매하고 격자 보드에 전략적으로 위치를 스냅하여 가설합니다.</div>
+          </div>
+          <div class="timeline-node">
+            <div class="node-num">02</div>
+            <div class="node-title">네트워크 링크 구축</div>
+            <div class="node-desc">장비의 인터페이스에 부합하도록 트래픽 링크 및 데이터 링크를 드래그하여 배선하고 예산 제약을 검증합니다.</div>
+          </div>
+          <div class="timeline-node">
+            <div class="node-num">03</div>
+            <div class="node-title">트래픽 가동 및 보상</div>
+            <div class="node-desc">웨이브 시작 시 실시간 시뮬레이션이 가동되며 요청 패킷이 정상 반환되면 Credits와 XP 보상을 회수합니다.</div>
+          </div>
+          <div class="timeline-node">
+            <div class="node-num">04</div>
+            <div class="node-title">장비 합성 및 증강</div>
+            <div class="node-desc">동일 기기 3개로 성급을 업그레이드하고 특수 성능 증강 카드를 탑재하여 심화된 부하에 맞서 아키텍처를 진화시킵니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 4: 세계관 및 비주얼 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">3. 테크니컬 세계관 및 디자인 시스템</div>
+          <div class="slide-meta">AESTHETICS & WORLDVIEW</div>
+        </div>
+        <div class="grid-2col">
+          <div class="glass-card">
+            <div class="card-title">🖥️ 가상현실 대시보드 세계관</div>
+            <div class="card-content">
+              IT 회사의 긴박한 시스템 모니터링 환경을 게임 속 공간으로 재해석하였습니다. 다크 모드 기반의 네이비 테마 디자인을 도입하여 세련되고 실감 나는 엔지니어링 대시보드 아트를 구현했습니다.
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="card-title">🎨 프리미엄 컬러 팔레트 & VFX</div>
+            <div class="card-content">
+              단순한 텍스트 기반 뷰에서 탈피하여, 요청/응답/DB 데이터 링크에 고유의 파스텔 색상 라인을 할당하고 패킷 이동 시 Phaser 3 WebGL 엔진을 통한 입자 트레일 효과를 부여하여 화려함을 극대화했습니다.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 5: 트래픽 아키텍처 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">4. 트래픽 시나리오 및 병목 설계</div>
+          <div class="slide-meta">TRAFFIC SIMULATION</div>
+        </div>
+        <div class="char-grid">
+          <div class="char-card">
+            <div class="char-icon">📥</div>
+            <div class="char-name">GET 요청</div>
+            <div class="char-tag">DB READ</div>
+            <div class="char-desc">데이터베이스 읽기 부하를 대량으로 유도하며 리드 레플리카 배치가 해결책입니다.</div>
+          </div>
+          <div class="char-card">
+            <div class="char-icon">📤</div>
+            <div class="char-name">POST 요청</div>
+            <div class="char-tag">DB WRITE</div>
+            <div class="char-desc">Primary DB 쓰기 성능에 의존하며, 합성 및 샤딩 증강이 돌파구입니다.</div>
+          </div>
+          <div class="char-card">
+            <div class="char-icon">⏳</div>
+            <div class="char-name">SLOW 요청</div>
+            <div class="char-tag">DB QUEUE</div>
+            <div class="char-desc">인덱싱 미흡으로 인한 장기 쿼리를 발생시켜 전체 아키텍처 대기열을 마비시킵니다.</div>
+          </div>
+          <div class="char-card">
+            <div class="char-icon">💥</div>
+            <div class="char-name">Burst 요청</div>
+            <div class="char-tag">SERVER QUEUE</div>
+            <div class="char-desc">매우 조밀한 간격으로 동시 유입되어 서버 대기 큐를 한계치까지 밀어붙입니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 6: 개발 계획 및 로드맵 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">5. 개발 마일스톤 및 로드맵</div>
+          <div class="slide-meta">DEVELOPMENT ROADMAP</div>
+        </div>
+        <div class="roadmap-list">
+          <div class="roadmap-item">
+            <div class="roadmap-priority">우선순위 1순위</div>
+            <div class="roadmap-desc"><span class="highlight-text">Phaser 격자 및 제스처 배선 구축</span>: 그리드 렌더러 구현 및 Shift+드래그를 활용한 링크 유효성 검사, 드래그 노드 이동 및 포트 제약 알고리즘.</div>
+          </div>
+          <div class="roadmap-item">
+            <div class="roadmap-priority p2">우선순위 2순위</div>
+            <div class="roadmap-desc"><span class="highlight-text">Zustand 연동 상점 가챠 및 시뮬레이터</span>: 실시간 Tick 시뮬레이터 작동 및 패킷 연출, 동일 기기 3개 수집 시 성급 병합 및 증강 스키마 적용.</div>
+          </div>
+          <div class="roadmap-item">
+            <div class="roadmap-priority p3">우선순위 3순위</div>
+            <div class="roadmap-desc"><span class="highlight-text">폴리싱 및 리소스 통합</span>: Web Audio 오디오 이펙트 연동 및 WebGL 파티클 효과 이식, UI 한계 해상도 디테일 폴리싱.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- SLIDE 7: 검증 및 완성 기준 -->
+    <!-- ---------------------------------------------------- -->
+    <div class="slide">
+      <div class="slide-content">
+        <div class="slide-header">
+          <div class="slide-title">6. 최종 테스트 및 완성 기준 (DoD)</div>
+          <div class="slide-meta">VALIDATION & DONE</div>
+        </div>
+        <div class="grid-2col">
+          <div class="glass-card">
+            <div class="card-title">🧪 자동화 테스트 검증 완료</div>
+            <div class="card-content">
+              - **Vitest 유닛 테스트 탑재**: Manhattan 거리 계산, 합성 및 상점 확률 로직에 대한 테스트 케이스 19개 전부 통과(GREEN).<br>
+              - 코드베이스 내 비즈니스 로직과 UI 씬 제스처 엔진 분리 검증 완료.
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="card-title">💻 수동 플레이 및 빌드 검증</div>
+            <div class="card-content">
+              - **호환성**: 1280x720 이상 기기 해상도 대응 확인.<br>
+              - **안정성**: 10개 웨이브 시나리오 실행 시 메모리 누수 방지 및 브라우저 성능 최적화 완료.<br>
+              - **빌드 성공**: Vite 프로덕션 번들 빌드 에러 없이 성공.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <!-- 슬라이드 제어 바 -->
+  <div class="controls">
+    <button class="control-btn" id="prev-btn">◀ 이전</button>
+    <div class="page-indicator" id="indicator">1 / 7</div>
+    <button class="control-btn" id="next-btn">다음 ▶</button>
+  </div>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const indicator = document.getElementById('indicator');
+    let currentIdx = 0;
+
+    function updateSlides() {
+      slides.forEach((slide, idx) => {
+        if (idx === currentIdx) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+      indicator.textContent = `${currentIdx + 1} / ${slides.length}`;
+    }
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIdx > 0) {
+        currentIdx--;
+        updateSlides();
+      }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (currentIdx < slides.length - 1) {
+        currentIdx++;
+        updateSlides();
+      }
+    });
+
+    // 키보드 방향키 조작 지원
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        if (currentIdx < slides.length - 1) {
+          currentIdx++;
+          updateSlides();
+        }
+      } else if (e.key === 'ArrowLeft') {
+        if (currentIdx > 0) {
+          currentIdx--;
+          updateSlides();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

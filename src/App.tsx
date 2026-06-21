@@ -30,7 +30,6 @@ import {
   getBoardTier,
   getLinkTier,
   getTotalConnectionCells,
-  simulateTrafficWave,
   type ArchitectureNodeId,
   type GridPosition,
   type NodeInstance,
@@ -158,10 +157,9 @@ export function App(): React.JSX.Element {
       return;
     }
     autoWaveStartedRef.current = true;
-    const result = simulateTrafficWave(wave, architecture);
-    beginWave(result);
+    beginWave();
     playWaveStart();
-    gameEvents.emit(GAME_EVENTS.WAVE_REQUEST, result);
+    gameEvents.emit(GAME_EVENTS.WAVE_REQUEST, { wave, architecture });
   }, [architecture, beginWave, phase, wave, worldReady]);
 
   const handleContinue = useCallback(() => {
@@ -353,7 +351,11 @@ export function App(): React.JSX.Element {
         />
 
         <section className="board-stage" aria-label="아키텍처 보드">
-          <div className="board-stage-layout">
+          <div
+            className={`board-stage-layout ${
+              selectedNode ? "board-stage-layout--details" : ""
+            }`}
+          >
             <div className="board-surface">
               <div className="board-meta board-meta--overlay">
                 <span>BOARD {boardTier.level}</span>
@@ -405,7 +407,7 @@ export function App(): React.JSX.Element {
           <InventoryDock
             inventory={inventory}
             architecture={architecture}
-            disabled={phase !== "prepare"}
+            disabled={false}
             onSelectNode={handleSelectNode}
             onDropNode={handleDropNode}
             onCancelPlacement={handleCancelPlacement}
@@ -422,7 +424,7 @@ export function App(): React.JSX.Element {
         shopItems={shopItems}
         inventory={inventory}
         coins={coins}
-        disabled={phase !== "prepare"}
+        disabled={phase === "result" || phase === "cleared" || phase === "defeated"}
         wave={wave}
         emergencyMaintenanceCharges={emergencyMaintenanceCharges}
         maintenanceExtensionMs={maintenanceExtensionMs}
