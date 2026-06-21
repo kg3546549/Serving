@@ -312,6 +312,57 @@ describe("campaign store", () => {
     expect(useGameStore.getState().serviceHp).toBe(100);
   });
 
+  it("applies game speed multiplier to runtime progress", () => {
+    useGameStore.getState().resetCampaign();
+    const startingCoins = useGameStore.getState().coins;
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
+    useGameStore.setState({
+      phase: "running",
+      gameSpeed: 4,
+      architecture: runtimeArchitecture,
+      runtimeState: createRuntimeSimulationState(
+        runtimeArchitecture,
+        testWave,
+      ),
+    });
+
+    for (
+      let tick = 0;
+      tick < 40 && useGameStore.getState().coins === startingCoins;
+      tick += 1
+    ) {
+      useGameStore.getState().stepSimulation(100);
+    }
+
+    expect(useGameStore.getState().coins).toBeGreaterThan(startingCoins);
+  });
+
+  it("does not grant extra coins when a wave ends", () => {
+    useGameStore.getState().resetCampaign();
+    const startingCoins = useGameStore.getState().coins;
+    const testWave = { ...STAGE_ONE_WAVES[0], deadlineMs: 30000 };
+    useGameStore.setState({
+      phase: "running",
+      architecture: runtimeArchitecture,
+      runtimeState: createRuntimeSimulationState(
+        runtimeArchitecture,
+        testWave,
+      ),
+    });
+
+    for (
+      let tick = 0;
+      tick < 400 && useGameStore.getState().phase === "running";
+      tick += 1
+    ) {
+      useGameStore.getState().stepSimulation(100);
+    }
+
+    const state = useGameStore.getState();
+    expect(state.phase).toBe("result");
+    expect(state.coins).toBe(startingCoins + (state.lastResult?.metrics.completed ?? 0));
+  });
+
   it("removes two service HP when a runtime request is dropped", () => {
     useGameStore.getState().resetCampaign();
     const architecture = useGameStore.getState().architecture;

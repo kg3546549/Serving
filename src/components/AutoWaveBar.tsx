@@ -1,25 +1,33 @@
-import type { GamePhase, MaintenanceMode } from "../store/gameStore";
+import type {
+  GamePhase,
+  GameSpeedMultiplier,
+  MaintenanceMode,
+} from "../store/gameStore";
 
 interface AutoWaveBarProps {
   phase: GamePhase;
   maintenanceMode: MaintenanceMode;
+  gameSpeed: GameSpeedMultiplier;
   remainingMs: number;
   totalMs: number;
   paused: boolean;
   emergencyMaintenanceCharges: number;
   onEmergencyMaintenance: () => void;
   onSkipPrepare?: () => void;
+  onChangeGameSpeed: (speed: GameSpeedMultiplier) => void;
 }
 
 export function AutoWaveBar({
   phase,
   maintenanceMode,
+  gameSpeed,
   remainingMs,
   totalMs,
   paused,
   emergencyMaintenanceCharges,
   onEmergencyMaintenance,
   onSkipPrepare,
+  onChangeGameSpeed,
 }: AutoWaveBarProps): React.JSX.Element {
   const elapsedPercent =
     phase === "prepare"
@@ -52,6 +60,19 @@ export function AutoWaveBar({
       </div>
       <div className="auto-wave-track">
         <i style={{ width: `${elapsedPercent}%` }} />
+      </div>
+      <div className="speed-control" aria-label="게임 속도">
+        {([1, 2, 4] as const).map((speed) => (
+          <button
+            key={speed}
+            type="button"
+            className={`speed-control-button ${gameSpeed === speed ? "active" : ""}`}
+            onClick={() => onChangeGameSpeed(speed)}
+            aria-pressed={gameSpeed === speed}
+          >
+            {speed}x
+          </button>
+        ))}
       </div>
       {phase === "prepare" && onSkipPrepare && (
         <button

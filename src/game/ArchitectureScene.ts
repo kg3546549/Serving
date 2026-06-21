@@ -169,6 +169,7 @@ export class ArchitectureScene extends Phaser.Scene {
   private runtimeState: RuntimeSimulationState | null = null;
   private runtimeTickTimer: Phaser.Time.TimerEvent | null = null;
   private longPressTimer: Phaser.Time.TimerEvent | null = null;
+  private playbackSpeed = 1;
   private runtimePacketPhases = new Map<number, RuntimePacket["phase"]>();
   private progress: LiveWaveMetrics = {
     completed: 0,
@@ -184,6 +185,7 @@ export class ArchitectureScene extends Phaser.Scene {
 
   create(): void {
     this.renderDensity = this.readRenderDensity();
+    this.syncPlaybackSpeed();
     this.cameras.main.setBackgroundColor("#f3f7fc");
     this.input.mouse?.disableContextMenu();
     this.createVfxTextures();
@@ -1489,14 +1491,14 @@ export class ArchitectureScene extends Phaser.Scene {
 
     for (const event of result.events) {
       this.activeTimers.push(
-        this.time.delayedCall(event.at * PLAYBACK_SCALE, () =>
+        this.scaledDelayedCall(event.at * PLAYBACK_SCALE, () =>
           this.presentEvent(event),
         ),
       );
     }
     const lastEventAt = result.events.at(-1)?.at ?? result.metrics.durationMs;
     this.activeTimers.push(
-      this.time.delayedCall(lastEventAt * PLAYBACK_SCALE + 850, () => {
+      this.scaledDelayedCall(lastEventAt * PLAYBACK_SCALE + 850, () => {
         this.isWaveRunning = false;
         this.statusText.setText(
           result.metrics.passed
@@ -2147,7 +2149,7 @@ export class ArchitectureScene extends Phaser.Scene {
       })
       .setDepth(18);
     particles.explode(count);
-    this.time.delayedCall(650, () => particles.destroy());
+    this.scaledDelayedCall(650, () => particles.destroy());
   }
 
   private playLinkPulse(
@@ -2230,6 +2232,7 @@ export class ArchitectureScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    this.syncPlaybackSpeed();
     if (this.isWaveRunning) {
       const store = useGameStore.getState();
       store.stepSimulation(delta);
@@ -2674,8 +2677,28 @@ export class ArchitectureScene extends Phaser.Scene {
 
   private wait(duration: number): Promise<void> {
     return new Promise((resolve) => {
-      this.time.delayedCall(duration, resolve);
+      this.scaledDelayedCall(duration, resolve);
     });
+  }
+
+  private getPlaybackSpeed(): number {
+    return useGameStore.getState().gameSpeed;
+  }
+
+  private scaledDelayedCall(
+    duration: number,
+    callback: () => void,
+  ): Phaser.Time.TimerEvent {
+    return this.time.delayedCall(duration / this.getPlaybackSpeed(), callback);
+  }
+
+  private syncPlaybackSpeed(): void {
+    const nextSpeed = this.getPlaybackSpeed();
+    if (this.playbackSpeed === nextSpeed) {
+      return;
+    }
+    this.playbackSpeed = nextSpeed;
+    this.tweens.timeScale = nextSpeed;
   }
 
   private tweenPromise(

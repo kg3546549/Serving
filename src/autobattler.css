@@ -402,7 +402,7 @@
 .infra-game .auto-wave-bar {
   display: grid;
   min-width: 0;
-  grid-template-columns: 44px 210px minmax(0, 1fr) auto;
+  grid-template-columns: 44px 210px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 16px;
   padding: 8px 14px;
@@ -460,6 +460,40 @@
     color-mix(in oklab, var(--ui-teal) 70%, white 30%),
     color-mix(in oklab, var(--ui-purple) 70%, white 30%)
   );
+}
+
+.speed-control {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.speed-control-button {
+  min-width: 42px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in oklab, var(--ui-blue) 18%, white 82%);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5a718d;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 850;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.speed-control-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--ui-blue) 34%, white 66%);
+}
+
+.speed-control-button.active {
+  border-color: color-mix(in oklab, var(--ui-blue) 70%, white 30%);
+  background: linear-gradient(180deg, var(--ui-blue), var(--ui-blue-strong));
+  color: #ffffff;
 }
 
 .emergency-maintenance-button {

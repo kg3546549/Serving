@@ -721,7 +721,7 @@ export function buildWaveResultFromRuntime(
       durationMs: state.timeMs,
       peakServerQueue: state.metrics.peakServerQueue,
       peakDatabaseQueue: state.metrics.peakDatabaseQueue,
-      earnedCoins: state.metrics.completed * 1 + (passed ? 35 : 15),
+      earnedCoins: state.metrics.completed,
       passed,
     },
     bottleneckNode,

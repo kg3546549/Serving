@@ -44,6 +44,7 @@ export type GamePhase =
 
 export type MaintenanceMode = "initial" | "regular" | "emergency";
 export type InfrastructureUpgradeChoice = "link" | "board";
+export type GameSpeedMultiplier = 1 | 2 | 4;
 
 export interface LiveWaveMetrics {
   completed: number;
@@ -73,6 +74,7 @@ interface GameState {
   augmentState: AugmentState | null;
   pendingInfrastructureUpgrades: number;
   maintenanceMode: MaintenanceMode;
+  gameSpeed: GameSpeedMultiplier;
   maintenanceExtensionMs: number;
   emergencyMaintenanceCharges: number;
   architecture: ArchitectureConfig;
@@ -84,6 +86,7 @@ interface GameState {
   updateWaveProgress: (metrics: LiveWaveMetrics) => void;
   completeWave: (result: WaveSimulationResult) => void;
   continueAfterResult: () => void;
+  setGameSpeed: (speed: GameSpeedMultiplier) => void;
   useEmergencyMaintenance: () => void;
   rollShop: (free?: boolean) => void;
   buyXp: () => void;
@@ -654,6 +657,7 @@ export const useGameStore = create<GameState>((set) => ({
   augmentState: null,
   pendingInfrastructureUpgrades: 0,
   maintenanceMode: "initial",
+  gameSpeed: 1,
   maintenanceExtensionMs: 0,
   emergencyMaintenanceCharges: 0,
   architecture: createInitialArchitecture(),
@@ -665,6 +669,7 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       phase: "prepare",
       maintenanceMode: "initial",
+      gameSpeed: 1,
       ...createStarterState(),
     }),
 
@@ -689,7 +694,6 @@ export const useGameStore = create<GameState>((set) => ({
       const isFinalWave = state.waveIndex === STAGE_ONE_WAVES.length - 1;
       const hpDamage = Math.min(30, Math.ceil(result.metrics.failed * 1.5));
       const serviceHp = Math.max(0, state.serviceHp - hpDamage);
-      const interest = Math.min(5, Math.floor(state.coins / 10));
       return {
         phase:
           serviceHp <= 0
@@ -697,7 +701,7 @@ export const useGameStore = create<GameState>((set) => ({
             : isFinalWave
               ? "cleared"
               : "result",
-        coins: state.coins + result.metrics.earnedCoins + interest,
+        coins: state.coins + result.metrics.earnedCoins,
         serviceHp,
         lastResult: result,
       };
@@ -715,6 +719,8 @@ export const useGameStore = create<GameState>((set) => ({
         shopItems: rollShopItems(state.playerLevel),
       };
     }),
+
+  setGameSpeed: (gameSpeed) => set({ gameSpeed }),
 
   useEmergencyMaintenance: () =>
     set((state) => {
@@ -1096,6 +1102,7 @@ export const useGameStore = create<GameState>((set) => ({
       augmentState: null,
       pendingInfrastructureUpgrades: 0,
       maintenanceMode: "initial",
+      gameSpeed: 1,
       maintenanceExtensionMs: 0,
       emergencyMaintenanceCharges: 0,
       liveMetrics: initialLiveMetrics(),
@@ -1108,11 +1115,12 @@ export const useGameStore = create<GameState>((set) => ({
       if (!state.runtimeState || state.phase !== "running") {
         return state;
       }
+      const scaledDeltaMs = deltaMs * state.gameSpeed;
       const prevCompleted = state.runtimeState.metrics.completed;
       const prevFailed =
         state.runtimeState.metrics.dropped +
         state.runtimeState.metrics.timedOut;
-      const nextRuntime = stepRuntimeSimulation(state.runtimeState, deltaMs);
+      const nextRuntime = stepRuntimeSimulation(state.runtimeState, scaledDeltaMs);
       
       const liveMetrics: LiveWaveMetrics = {
         completed: nextRuntime.metrics.completed,
@@ -1148,14 +1156,13 @@ export const useGameStore = create<GameState>((set) => ({
       } else if (isRuntimeWaveSettled(nextRuntime)) {
         const result = buildWaveResultFromRuntime(nextRuntime);
         const isFinalWave = state.waveIndex === STAGE_ONE_WAVES.length - 1;
-        
-        const interest = Math.min(5, Math.floor(coins / 10));
+
         phase = isFinalWave ? "cleared" : "result";
         lastResult = result;
         return {
           runtimeState: null,
           phase,
-          coins: coins + (result.metrics.passed ? 35 : 15) + interest,
+          coins,
           serviceHp,
           lastResult,
           liveMetrics,

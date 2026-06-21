@@ -82,6 +82,7 @@ export function App(): React.JSX.Element {
     (state) => state.pendingInfrastructureUpgrades,
   );
   const maintenanceMode = useGameStore((state) => state.maintenanceMode);
+  const gameSpeed = useGameStore((state) => state.gameSpeed);
   const maintenanceExtensionMs = useGameStore(
     (state) => state.maintenanceExtensionMs,
   );
@@ -99,6 +100,7 @@ export function App(): React.JSX.Element {
   const continueAfterResult = useGameStore(
     (state) => state.continueAfterResult,
   );
+  const setGameSpeed = useGameStore((state) => state.setGameSpeed);
   const useEmergencyMaintenance = useGameStore(
     (state) => state.useEmergencyMaintenance,
   );
@@ -300,22 +302,22 @@ export function App(): React.JSX.Element {
       title: "서비스 운영 종료",
       detail:
         failedCount > 0
-          ? `정기점검으로 전환합니다 · +$${lastResult.metrics.earnedCoins} · 실패 ${failedCount}건`
-          : `정기점검으로 전환합니다 · +$${lastResult.metrics.earnedCoins} · 안정적으로 마감했습니다`,
+          ? `정기점검으로 전환합니다 · 실패 ${failedCount}건`
+          : "정기점검으로 전환합니다 · 안정적으로 마감했습니다",
     });
 
     const continueTimer = window.setTimeout(() => {
       handleContinue();
-    }, 180);
+    }, 180 / gameSpeed);
     const clearNoticeTimer = window.setTimeout(() => {
       setPhaseNotice(null);
-    }, 2600);
+    }, 2600 / gameSpeed);
 
     return () => {
       window.clearTimeout(continueTimer);
       window.clearTimeout(clearNoticeTimer);
     };
-  }, [handleContinue, lastResult, phase]);
+  }, [gameSpeed, handleContinue, lastResult, phase]);
 
   useEffect(() => {
     if (phase !== "prepare") {
@@ -336,10 +338,12 @@ export function App(): React.JSX.Element {
       return;
     }
     const timer = window.setInterval(() => {
-      setPrepRemainingMs((remaining) => Math.max(0, remaining - 100));
+      setPrepRemainingMs((remaining) =>
+        Math.max(0, remaining - 100 * gameSpeed),
+      );
     }, 100);
     return () => window.clearInterval(timer);
-  }, [isTimerPaused, phase, worldReady]);
+  }, [gameSpeed, isTimerPaused, phase, worldReady]);
 
   useEffect(() => {
     if (
@@ -442,12 +446,14 @@ export function App(): React.JSX.Element {
           <AutoWaveBar
             phase={phase}
             maintenanceMode={maintenanceMode}
+            gameSpeed={gameSpeed}
             remainingMs={prepRemainingMs}
             totalMs={prepDurationMs}
             paused={isTimerPaused}
             emergencyMaintenanceCharges={emergencyMaintenanceCharges}
             onEmergencyMaintenance={handleEmergencyMaintenance}
             onSkipPrepare={handleSkipPrepare}
+            onChangeGameSpeed={setGameSpeed}
           />
         )}
 
@@ -516,7 +522,11 @@ export function App(): React.JSX.Element {
           />
         )}
       {phaseNotice && (
-        <aside className="phase-notice" aria-live="polite">
+        <aside
+          className="phase-notice"
+          aria-live="polite"
+          style={{ animationDuration: `${2.6 / gameSpeed}s` }}
+        >
           <strong>{phaseNotice.title}</strong>
           <span>{phaseNotice.detail}</span>
         </aside>

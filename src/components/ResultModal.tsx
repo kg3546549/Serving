@@ -55,7 +55,7 @@ export function ResultModal({
           </div>
           <div>
             <strong>+{result.metrics.earnedCoins}</strong>
-            <span>획득 코인</span>
+            <span>성공 코인</span>
           </div>
           <div>
             <strong>{result.metrics.peakDatabaseQueue}</strong>
