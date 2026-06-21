@@ -45,6 +45,7 @@ import {
   type StartWavePayload,
 } from "./bridge/gameEvents";
 import { resolveNodeGesture } from "./nodeGesture";
+import { DEVICE_ICON_META } from "../config/deviceIconMeta";
 
 interface NodeView {
   id: ArchitectureNodeId;
@@ -570,15 +571,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const tile = this.add.rectangle(0, 0, 58, 58, 0x1b79df, 1);
     tile.setStrokeStyle(2, 0xffffff, 0.95);
     const icon = this.add.graphics();
-    icon.lineStyle(4, 0xffffff, 1);
-    icon.strokeCircle(-10, -4, 7);
-    icon.strokeCircle(10, -4, 7);
-    icon.beginPath();
-    icon.arc(-10, 22, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
-    icon.strokePath();
-    icon.beginPath();
-    icon.arc(10, 22, 12, Phaser.Math.DegToRad(195), Phaser.Math.DegToRad(345));
-    icon.strokePath();
+    DEVICE_ICON_META.entry.drawPhaser(icon);
     const label = this.createNodeLabel("Traffic Ingress", 0, 54);
     const sub = this.createNodeSubLabel("FIXED", 0, 74);
     const dot = this.createNodeStatusDot(30, 24);
@@ -595,10 +588,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const tile = this.add.rectangle(0, 0, 58, 58, COLORS.purpleDark, 1);
     tile.setStrokeStyle(2, 0xffffff, 0.95);
     const icon = this.add.graphics();
-    icon.lineStyle(5, 0xffffff, 1);
-    icon.strokeCircle(0, 3, 17);
-    icon.lineBetween(-8, 3, -1, 11);
-    icon.lineBetween(-1, 11, 11, -3);
+    DEVICE_ICON_META.exit.drawPhaser(icon);
     const label = this.createNodeLabel("Response Egress", 0, 54);
     const sub = this.createNodeSubLabel("FIXED", 0, 74);
     const dot = this.createNodeStatusDot(30, 24);
@@ -622,10 +612,7 @@ export class ArchitectureScene extends Phaser.Scene {
     body.fillRoundedRect(-29, -29, 58, 58, 14);
     body.lineStyle(3, 0xffffff, 1);
     body.strokeRoundedRect(-29, -29, 58, 58, 14);
-    body.strokeRect(-15, -13, 30, 24);
-    body.lineBetween(-10, -4, 10, -4);
-    body.lineBetween(-10, 4, 10, 4);
-    body.lineBetween(-10, 12, 10, 12);
+    DEVICE_ICON_META[id].drawPhaser(body);
     const stateText = this.add
       .text(0, 54, "APP", {
         color: "#6e839f",
@@ -661,12 +648,7 @@ export class ArchitectureScene extends Phaser.Scene {
     body.fillRoundedRect(-29, -29, 58, 58, 14);
     body.lineStyle(3, 0xffffff, 0.95);
     body.strokeRoundedRect(-29, -29, 58, 58, 14);
-    body.lineStyle(4, 0xffffff, 1);
-    body.strokeRect(-8, -8, 16, 16);
-    body.lineBetween(0, -24, 0, -8);
-    body.lineBetween(0, 8, 0, 24);
-    body.lineBetween(-24, 0, -8, 0);
-    body.lineBetween(8, 0, 24, 0);
+    DEVICE_ICON_META.loadBalancer.drawPhaser(body);
     const label = this.createNodeLabel("Load Balancer", 0, 54);
     const sub = this.createNodeSubLabel("RR", 0, 74);
     const dot = this.createNodeStatusDot(30, 24);
@@ -684,13 +666,7 @@ export class ArchitectureScene extends Phaser.Scene {
     const tile = this.add.rectangle(0, 0, 58, 58, 0x1da4a0);
     tile.setStrokeStyle(2, 0xffffff, 0.95);
     const database = this.add.graphics();
-    database.fillStyle(0xffffff, 1);
-    database.fillEllipse(0, -12, 32, 10);
-    database.fillRect(-16, -12, 32, 28);
-    database.fillEllipse(0, 16, 32, 10);
-    database.lineStyle(2, 0x1da4a0, 1);
-    database.strokeEllipse(0, 0, 32, 10);
-    database.strokeEllipse(0, 9, 32, 10);
+    DEVICE_ICON_META.database.drawPhaser(database);
     const label = this.createNodeLabel("Primary DB", 0, 72);
     const stateText = this.add
       .text(0, 54, "DB", {

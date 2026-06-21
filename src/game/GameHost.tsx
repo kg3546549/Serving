@@ -124,7 +124,28 @@ export function GameHost({
       }
       const width = Math.max(1, Math.round(entry.contentRect.width));
       const height = Math.max(1, Math.round(entry.contentRect.height));
+      
+      const dpr = window.devicePixelRatio || 1;
       game.scale.resize(width, height);
+
+      // 고DPI 모니터/Retina 디스플레이에서 Phaser WebGL의 드로잉 버퍼(물리 픽셀)를 강제 보정하여
+      // 흐릿하게 확대 렌더링되던 현상을 완전히 고해상도로 갱신합니다.
+      const canvas = game.canvas;
+      if (canvas && dpr > 1) {
+        const targetWidth = width * dpr;
+        const targetHeight = height * dpr;
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+
+          if (game.renderer && game.renderer.type === Phaser.WEBGL) {
+            const renderer = game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+            renderer.resize(targetWidth, targetHeight);
+          }
+        }
+      }
     });
     resizeObserver.observe(hostElement);
 
