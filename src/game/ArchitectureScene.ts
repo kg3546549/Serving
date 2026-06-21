@@ -147,6 +147,7 @@ export class ArchitectureScene extends Phaser.Scene {
     number,
     Phaser.GameObjects.Particles.ParticleEmitter
   >();
+  private requestTimerGraphics = new Map<number, Phaser.GameObjects.Graphics>();
   private boardGraphics!: Phaser.GameObjects.Graphics;
   private pathGraphics!: Phaser.GameObjects.Graphics;
   private previewGraphics!: Phaser.GameObjects.Graphics;
@@ -1544,7 +1545,9 @@ export class ArchitectureScene extends Phaser.Scene {
         },
       )
       .setOrigin(0.5);
-    container.add([shadow, card, user, method]);
+    const timerGraphics = this.add.graphics();
+    container.add([shadow, card, user, method, timerGraphics]);
+    this.requestTimerGraphics.set(requestId, timerGraphics);
     container.setScale(0);
     container.postFX.addGlow(color, 1.5, 0, false, 0.1, 6);
     this.requestViews.set(requestId, container);
@@ -1712,6 +1715,10 @@ export class ArchitectureScene extends Phaser.Scene {
     if (!request) {
       return;
     }
+    const timerGraphics = this.requestTimerGraphics.get(requestId);
+    if (timerGraphics) {
+      timerGraphics.clear();
+    }
     const exit = this.getNodePosition("exit");
     request.setPosition(exit.x, exit.y).setAlpha(1).setScale(0.8);
     const pulse = this.add
@@ -1755,6 +1762,10 @@ export class ArchitectureScene extends Phaser.Scene {
     const request = this.requestViews.get(requestId);
     if (!request) {
       return;
+    }
+    const timerGraphics = this.requestTimerGraphics.get(requestId);
+    if (timerGraphics) {
+      timerGraphics.clear();
     }
     request.add(
       this.add
@@ -2149,6 +2160,37 @@ export class ArchitectureScene extends Phaser.Scene {
         view.setScale(0.35);
         view.setAlpha(0.5);
       }
+
+      // Update circular timeout progress bar
+      const timerGraphics = this.requestTimerGraphics.get(packet.id);
+      if (timerGraphics) {
+        const totalLimit = Math.max(1, packet.deadlineAtMs - packet.spawnAtMs);
+        const elapsed = Math.max(0, state.timeMs - packet.spawnAtMs);
+        const progress = Phaser.Math.Clamp(elapsed / totalLimit, 0, 1);
+
+        timerGraphics.clear();
+        
+        // Background track (subtle semi-transparent dark circle)
+        timerGraphics.lineStyle(3.5, 0x000000, 0.25);
+        timerGraphics.strokeCircle(0, 0, 23);
+
+        // Determine color based on progress (closer to timeout = warning color)
+        let color = 0x22c55e; // Green
+        if (progress > 0.8) {
+          color = 0xef4444; // Red
+        } else if (progress > 0.5) {
+          color = 0xf97316; // Orange
+        }
+
+        // Draw radial progress arc
+        const startAngle = -Math.PI / 2; // 12 o'clock (top)
+        const endAngle = startAngle + (Math.PI * 2 * progress);
+
+        timerGraphics.lineStyle(3.5, color, 0.9);
+        timerGraphics.beginPath();
+        timerGraphics.arc(0, 0, 23, startAngle, endAngle, false);
+        timerGraphics.strokePath();
+      }
     }
   }
 
@@ -2319,6 +2361,8 @@ export class ArchitectureScene extends Phaser.Scene {
   private destroyRequest(requestId: number): void {
     this.requestTrails.get(requestId)?.destroy();
     this.requestTrails.delete(requestId);
+    this.requestTimerGraphics.get(requestId)?.destroy();
+    this.requestTimerGraphics.delete(requestId);
     this.requestViews.get(requestId)?.destroy(true);
     this.requestViews.delete(requestId);
   }
