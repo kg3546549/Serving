@@ -1693,8 +1693,7 @@ summary:focus-visible {
   .menu-architecture-preview {
     grid-template-rows: 48px minmax(230px, 1fr) auto;
   }
-
-
+}
 
 .world-frame {
   position: absolute;
