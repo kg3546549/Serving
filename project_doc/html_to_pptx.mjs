@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import { Presentation, PresentationFile } from "@oai/artifact-tool";
 
 const execFileAsync = promisify(execFile);
-const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const sourceDir = path.resolve(process.argv[2] ?? process.cwd());
 const outputDir = path.resolve(process.argv[3] ?? sourceDir);
 const renderDir = await fs.mkdtemp(path.join(os.tmpdir(), "stack-breach-slides-"));

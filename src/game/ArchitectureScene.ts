@@ -2278,9 +2278,8 @@ export class ArchitectureScene extends Phaser.Scene {
           0,
           1,
         );
-        const coords = packet.path.map((nodeId) => this.getNodePosition(nodeId));
-        if (coords.length >= 2) {
-          const pos = this.getPositionOnPath(coords, progressRatio);
+        if (packet.path.length >= 2) {
+          const pos = this.getPositionOnPath(packet.path, progressRatio);
           view.setPosition(pos.x, pos.y);
           view.setScale(1);
           view.setAlpha(1);
@@ -2351,8 +2350,12 @@ export class ArchitectureScene extends Phaser.Scene {
     }
   }
 
-  private getPositionOnPath(points: Phaser.Math.Vector2[], ratio: number): Phaser.Math.Vector2 {
-    if (points.length < 2) return points[0] ?? new Phaser.Math.Vector2();
+  private getPositionOnPath(path: ArchitectureNodeId[], ratio: number): Phaser.Math.Vector2 {
+    if (path.length < 2) {
+      const firstNode = path[0];
+      return firstNode ? this.getNodePosition(firstNode) : new Phaser.Math.Vector2();
+    }
+    const points = path.map((nodeId) => this.getNodePosition(nodeId));
     let totalLen = 0;
     const lengths: number[] = [];
     for (let i = 0; i < points.length - 1; i++) {
@@ -2367,7 +2370,14 @@ export class ArchitectureScene extends Phaser.Scene {
     for (let i = 0; i < points.length - 1; i++) {
       if (accumulated + lengths[i] >= targetLen) {
         const segRatio = (targetLen - accumulated) / lengths[i];
-        return this.getOrthogonalPoint(points[i], points[i+1], segRatio);
+        const conn = this.architecture.connections.find(
+          (c) => (c.from === path[i] && c.to === path[i+1]) || (c.from === path[i+1] && c.to === path[i])
+        );
+        if (conn && conn.from === path[i+1] && conn.to === path[i]) {
+          return this.getOrthogonalPoint(points[i+1], points[i], 1 - segRatio);
+        } else {
+          return this.getOrthogonalPoint(points[i], points[i+1], segRatio);
+        }
       }
       accumulated += lengths[i];
     }

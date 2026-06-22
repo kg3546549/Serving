@@ -2,10 +2,12 @@ import type {
   ArchitectureConfig,
   ArchitectureNodeId,
   BuildSystemType,
+  NodeInstance,
 } from "../simulation/trafficSimulation";
 import {
   getNodePortUsage,
   NODE_PORT_LIMITS,
+  SYSTEM_CATALOG,
 } from "../simulation/trafficSimulation";
 import { useGameStore } from "../store/gameStore";
 import { DeviceIcon } from "./DeviceIcon";
@@ -73,11 +75,13 @@ export function NodeDetails({
 
   // Zustand 스토어 상태 연동
   const inventory = useGameStore((state) => state.inventory);
+  const deployedEquipment = useGameStore((state) => state.deployedEquipment);
   const liveMetrics = useGameStore((state) => state.liveMetrics);
   const unequipModule = useGameStore((state) => state.unequipModule);
+  const equipModule = useGameStore((state) => state.equipModule);
 
   const instanceId = architecture.boardSlots[nodeId as "serverA" | "serverB" | "database" | "loadBalancer"];
-  const item = inventory.find((i) => i?.id === instanceId);
+  const item = (instanceId ? deployedEquipment[instanceId] : undefined) || inventory.find((i) => i?.id === instanceId);
   const modules = item?.modules ?? [];
 
   // 성능 계수 및 원형 프로그레스 계산
@@ -87,6 +91,17 @@ export function NodeDetails({
   };
   const isServer = nodeId === "serverA" || nodeId === "serverB";
   const isDb = nodeId === "database";
+
+  const eligibleTypes = isServer
+    ? ["sqs", "kafka", "waf", "cognito"]
+    : isDb
+      ? ["redis", "rdsReplica", "documentDb", "s3", "kafka"]
+      : [];
+
+  const availableModules = inventory.filter(
+    (m): m is NodeInstance =>
+      m !== null && eligibleTypes.includes(m.type)
+  );
 
   const maxQueue = isDb
     ? performance.databaseQueueCapacity
@@ -269,7 +284,43 @@ export function NodeDetails({
                         </button>
                       </>
                     ) : (
-                      <span style={{ color: "var(--ui-muted)", fontSize: "9px" }}>Empty Slot</span>
+                      <div style={{ display: "flex", flexDirection: "column", width: "100%", justifyContent: "center", gap: "2px", overflow: "hidden" }}>
+                        {availableModules.length > 0 ? (
+                          <select
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val) {
+                                equipModule(nodeId as "serverA" | "serverB" | "database", val);
+                              }
+                            }}
+                            defaultValue=""
+                            style={{
+                              width: "100%",
+                              background: "var(--ui-bg)",
+                              border: "1px solid var(--ui-line)",
+                              borderRadius: "4px",
+                              color: "var(--ui-text)",
+                              fontSize: "9px",
+                              padding: "2px 4px",
+                              outline: "none",
+                              cursor: "pointer",
+                              boxSizing: "border-box"
+                            }}
+                          >
+                            <option value="" disabled>장착 선택...</option>
+                            {availableModules.map((m) => {
+                              const spec = SYSTEM_CATALOG[m.type];
+                              return (
+                                <option key={m.id} value={m.id} style={{ background: "var(--ui-panel-solid)", color: "var(--ui-text)" }}>
+                                  {spec ? spec.name : m.type} (★{m.starLevel})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <span style={{ color: "var(--ui-muted)", fontSize: "8.5px", textAlign: "center", width: "100%" }}>Empty Slot</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

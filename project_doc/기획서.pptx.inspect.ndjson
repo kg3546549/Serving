@@ -1,0 +1,24 @@
+{"kind":"deck","id":"pr/q4elwy","name":"Deck"}
+{"kind":"layout","layoutId":"d0c30ae9-538b-4640-b22a-bc2683a0f26d","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"06ecafbd-f422-45a2-9b10-ca326dc42ec2","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/hpr1mx","slide":1,"title":"Slide 1","textShapes":0}
+{"kind":"image","id":"im/3m94fu18","slide":1,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/hpr1mx","slide":1,"text":""}
+{"kind":"slide","id":"sl/2ansir","slide":2,"title":"Slide 2","textShapes":0}
+{"kind":"image","id":"im/47y1kre1","slide":2,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/2ansir","slide":2,"text":""}
+{"kind":"slide","id":"sl/x9z3y4","slide":3,"title":"Slide 3","textShapes":0}
+{"kind":"image","id":"im/032lszqt","slide":3,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/x9z3y4","slide":3,"text":""}
+{"kind":"slide","id":"sl/2zoidm","slide":4,"title":"Slide 4","textShapes":0}
+{"kind":"image","id":"im/udg7adsj","slide":4,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/2zoidm","slide":4,"text":""}
+{"kind":"slide","id":"sl/hni41g","slide":5,"title":"Slide 5","textShapes":0}
+{"kind":"image","id":"im/ex0nuxc3","slide":5,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/hni41g","slide":5,"text":""}
+{"kind":"slide","id":"sl/qccsju","slide":6,"title":"Slide 6","textShapes":0}
+{"kind":"image","id":"im/2p8nqxs7","slide":6,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/qccsju","slide":6,"text":""}
+{"kind":"slide","id":"sl/rzskzi","slide":7,"title":"Slide 7","textShapes":0}
+{"kind":"image","id":"im/2x4nap4r","slide":7,"name":"","alt":"HTML로 렌더링한 STACK//BREACH 슬라이드","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/rzskzi","slide":7,"text":""}

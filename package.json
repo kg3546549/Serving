@@ -1,5 +1,5 @@
 {
-  "name": "stack-breach",
+  "name": "serving",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "pptx": "python project_doc/generate_ppt.py"
   },
   "dependencies": {
     "phaser": "3.90.0",

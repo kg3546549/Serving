@@ -542,9 +542,9 @@ export function MainMenu({ onStart }: MainMenuProps): React.JSX.Element {
       <div className="menu-dashboard">
         <header className="menu-topbar">
           <div className="menu-brand">
-            <span className="menu-brand-mark">S/B</span>
+            <span className="menu-brand-mark">Serving!!</span>
             <div>
-              <strong>STACK BREACH</strong>
+              <strong>Serving!!</strong>
               <small>REALTIME ARCHITECTURE PUZZLE</small>
             </div>
           </div>

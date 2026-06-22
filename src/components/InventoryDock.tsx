@@ -215,6 +215,16 @@ function getPreferredRole(
   if (spec.category === "loadBalancer" && spec.nodeId) {
     return "loadBalancer";
   }
+
+  // 모듈의 경우 대상 장비가 보드에 배치되어 있을 때에만 드래그앤드롭이 활성화되도록 선호 역할 반환
+  if (["sqs", "kafka", "waf", "cognito"].includes(item.type)) {
+    if (architecture.boardSlots.serverA) return "serverA";
+    if (architecture.boardSlots.serverB) return "serverB";
+  }
+  if (["redis", "rdsReplica", "documentDb", "s3"].includes(item.type)) {
+    if (architecture.boardSlots.database) return "database";
+  }
+
   return null;
 }
 

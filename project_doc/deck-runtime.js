@@ -1,13 +1,13 @@
 const colors = ["blue", "purple", "mint", "yellow", "pink"];
 
 function topbar(index, section) {
-  const mark = index === 0 ? "S//B" : String(index).padStart(2, "0");
-  return `<div class="topbar"><div class="brand"><span class="mark">${mark}</span> STACK//BREACH</div><span class="tag">${section}</span></div>`;
+  const mark = index === 0 ? "S!!" : String(index).padStart(2, "0");
+  return `<div class="topbar"><div class="brand"><span class="mark">${mark}</span> Serving!!</div><span class="tag">${section}</span></div>`;
 }
 
 function footer(index, total, label) {
   const progress = Math.round(((index + 1) / total) * 100);
-  return `<div class="footer"><span>STACK//BREACH · ${label}</span><div class="progress"><i style="--p:${progress}%"></i></div><span>${String(index + 1).padStart(2, "0")} / ${String(total).padStart(2, "0")}</span></div>`;
+  return `<div class="footer"><span>Serving!! · ${label}</span><div class="progress"><i style="--p:${progress}%"></i></div><span>${String(index + 1).padStart(2, "0")} / ${String(total).padStart(2, "0")}</span></div>`;
 }
 
 function cards(items, columns = 2) {

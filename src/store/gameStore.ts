@@ -382,45 +382,93 @@ function calculatePerformance(
   const countAugment = (augment: AugmentType) =>
     owned.filter((item) => item.augment === augment).length;
 
+  const countServerType = (type: BuildSystemType) =>
+    serverItems.filter((item) => item.type === type).length;
+
+  // 1. 서버 동시성 계산 (EKS, Lambda, ECS 보너스)
+  let serverConcurrencyBonus = 0;
+  serverConcurrencyBonus += countServerType("eks") * 4;
+  serverConcurrencyBonus += countServerType("lambda") * 8;
+  serverConcurrencyBonus += countServerType("ecs") * 2;
+  const serverConcurrency =
+    Math.max(2, Math.round(2 * maxServerScale)) +
+    countAugment("autoScaler") +
+    serverConcurrencyBonus;
+
+  // 2. 서버 큐 용량 계산 (ECS, EKS 보너스, Apache 패널티 / SQS, Kafka 버프)
+  let serverQueueBonus = 0;
+  serverQueueBonus += countServerType("eks") * 3;
+  serverQueueBonus += countServerType("ecs") * 8;
+  serverQueueBonus -= countServerType("apache") * 2;
+
+  const serverQueueCapacity = Math.max(
+    2,
+    6 +
+    countAugment("serverRam") * 4 +
+    serverQueueBonus +
+    (hasModuleOnServer("sqs") ? 10 : 0) + // SQS 큐 대폭 상향 (+3 -> +10)
+    (hasModuleOnServer("kafka") ? 12 : 0) // Kafka 큐 대폭 상향 (+5 -> +12)
+  );
+
+  // 3. 서버 처리 시간 배수 계산 (낮을수록 빠름, Apache/EKS 가속, Lambda/ECS 지연)
+  let serverSpeedFactor = 1.0;
+  for (const item of serverItems) {
+    if (item.type === "apache") serverSpeedFactor *= 0.55; // Apache: 매우 빠름
+    else if (item.type === "eks") serverSpeedFactor *= 0.8;   // EKS: 20% 가속
+    else if (item.type === "lambda") serverSpeedFactor *= 1.2; // Lambda: 콜드스타트 지연
+    else if (item.type === "ecs") serverSpeedFactor *= 1.35;   // ECS: 배치 작업 지연
+  }
+  const serverProcessingMultiplier = Math.max(
+    0.15, // Apache 등을 위해 최소 배수를 0.32에서 0.15로 하향 조정
+    (1 / maxServerScale) *
+      Math.pow(0.72, countAugment("serverCpu")) *
+      Math.pow(0.85, countAugment("autoScaler")) *
+      serverSpeedFactor,
+  );
+
+  // 4. 데이터베이스 동시성 계산 (RDS Replica/DocumentDB 추가 버프)
+  const databaseConcurrency =
+    Math.max(2, Math.round(2 * databaseScale)) +
+    countAugment("dbSharding") * 2 +
+    (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 2 : 0);
+
+  // 5. 데이터베이스 큐 용량 계산
+  const databaseQueueCapacity =
+    8 +
+    countAugment("dbStorage") * 6 +
+    (hasModuleOnServer("kafka") || hasModuleOnDatabase("kafka") ? 6 : 0) +
+    (hasModuleOnDatabase("s3") ? 6 : 0);
+
+  // 6. 데이터베이스 처리 시간 배수 계산 (낮을수록 빠름, Redis/Replica 버프)
+  const databaseProcessingMultiplier = Math.max(
+    0.15,
+    (1 / databaseScale) *
+      Math.pow(0.68, countAugment("dbQuery")) *
+      Math.pow(0.48, countAugment("dax")) *
+      (hasModuleOnDatabase("redis") ? 0.65 : 1) *
+      (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 0.75 : 1),
+  );
+
+  // 7. 응답 반환 지연 시간 배수
+  const responseMultiplier = Math.max(
+    0.45,
+    (1 / loadBalancerScale) *
+      Math.pow(0.88, countAugment("lbHealth")),
+  );
+
+  // 8. 로드밸런서 백엔드 연결 제한
+  const loadBalancerBackendLimit =
+    2 + countAugment("lbBackends") * 2;
+
   return {
-    serverConcurrency:
-      Math.max(2, Math.round(2 * maxServerScale)) +
-      countAugment("autoScaler"),
-    serverQueueCapacity:
-      6 +
-      countAugment("serverRam") * 4 +
-      (hasModuleOnServer("sqs") ? 3 : 0) +
-      (hasModuleOnServer("kafka") ? 5 : 0),
-    serverProcessingMultiplier: Math.max(
-      0.32,
-      (1 / maxServerScale) *
-        Math.pow(0.72, countAugment("serverCpu")) *
-        Math.pow(0.85, countAugment("autoScaler")),
-    ),
-    databaseConcurrency:
-      Math.max(2, Math.round(2 * databaseScale)) +
-      countAugment("dbSharding") * 2 +
-      (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 1 : 0),
-    databaseQueueCapacity:
-      8 +
-      countAugment("dbStorage") * 6 +
-      (hasModuleOnServer("kafka") || hasModuleOnDatabase("kafka") ? 4 : 0) +
-      (hasModuleOnDatabase("s3") ? 4 : 0),
-    databaseProcessingMultiplier: Math.max(
-      0.24,
-      (1 / databaseScale) *
-        Math.pow(0.68, countAugment("dbQuery")) *
-        Math.pow(0.48, countAugment("dax")) *
-        (hasModuleOnDatabase("redis") ? 0.72 : 1) *
-        (hasModuleOnDatabase("rdsReplica") || hasModuleOnDatabase("documentDb") ? 0.86 : 1),
-    ),
-    responseMultiplier: Math.max(
-      0.45,
-      (1 / loadBalancerScale) *
-        Math.pow(0.88, countAugment("lbHealth")),
-    ),
-    loadBalancerBackendLimit:
-      2 + countAugment("lbBackends") * 2,
+    serverConcurrency,
+    serverQueueCapacity,
+    serverProcessingMultiplier,
+    databaseConcurrency,
+    databaseQueueCapacity,
+    databaseProcessingMultiplier,
+    responseMultiplier,
+    loadBalancerBackendLimit,
   };
 }
 
